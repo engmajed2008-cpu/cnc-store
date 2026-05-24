@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db/prisma";
 import { revalidateTag } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
-import { deleteStorageFile } from "@/lib/storage";
-import { BUCKETS } from "@/lib/constants";
+import { withAdminAuth } from "@/lib/db/adminAuth";
+import { deleteStorageFile, BUCKETS } from "@/lib/storage/supabaseStorage";
 
 // GET /api/admin/products/[id]
-export const GET = requireAdmin(
+export const GET = withAdminAuth(
   async (_req: NextRequest, { params }: { params: { id: string } }) => {
     const product = await prisma.product.findUnique({
       where: { id: params.id },
@@ -31,7 +30,7 @@ export const GET = requireAdmin(
 );
 
 // PATCH /api/admin/products/[id]
-export const PATCH = requireAdmin(
+export const PATCH = withAdminAuth(
   async (req: NextRequest, { params }: { params: { id: string } }) => {
     const body = await req.json();
 
@@ -51,7 +50,7 @@ export const PATCH = requireAdmin(
 );
 
 // DELETE /api/admin/products/[id]
-export const DELETE = requireAdmin(
+export const DELETE = withAdminAuth(
   async (_req: NextRequest, { params }: { params: { id: string } }) => {
     const images = await prisma.productImage.findMany({ where: { productId: params.id } });
     await Promise.allSettled(
