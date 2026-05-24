@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import prisma from "@/lib/db/prisma";
 import { revalidateTag } from "next/cache";
 import { withAdminAuth } from "@/lib/db/adminAuth";
 import { deleteStorageFile, BUCKETS } from "@/lib/storage/supabaseStorage";
 
 // GET /api/admin/products/[id]
 export const GET = withAdminAuth(
-  async (_req: NextRequest, { params }: { params: { id: string } }) => {
+  async (req: NextRequest, ctx: { params: Record<string, string> }) => {
     const product = await prisma.product.findUnique({
-      where: { id: params.id },
+      where: { id: ctx.params.id },
       include: {
         category: { select: { id: true, slug: true, nameAr: true, nameEn: true } },
         images: { orderBy: { sortOrder: "asc" } },
@@ -31,11 +31,11 @@ export const GET = withAdminAuth(
 
 // PATCH /api/admin/products/[id]
 export const PATCH = withAdminAuth(
-  async (req: NextRequest, { params }: { params: { id: string } }) => {
+  async (req: NextRequest, ctx: { params: Record<string, string> }) => {
     const body = await req.json();
 
     const product = await prisma.product.update({
-      where: { id: params.id },
+      where: { id: ctx.params.id },
       data: body,
       include: {
         category: { select: { id: true, slug: true, nameAr: true, nameEn: true } },
@@ -51,13 +51,13 @@ export const PATCH = withAdminAuth(
 
 // DELETE /api/admin/products/[id]
 export const DELETE = withAdminAuth(
-  async (_req: NextRequest, { params }: { params: { id: string } }) => {
-    const images = await prisma.productImage.findMany({ where: { productId: params.id } });
+  async (req: NextRequest, ctx: { params: Record<string, string> }) => {
+    const images = await prisma.productImage.findMany({ where: { productId: ctx.params.id } });
     await Promise.allSettled(
       images.map((img) => deleteStorageFile(BUCKETS.PRODUCTS, img.storagePath))
     );
 
-    await prisma.product.delete({ where: { id: params.id } });
+    await prisma.product.delete({ where: { id: ctx.params.id } });
 
     revalidateTag("products");
     return NextResponse.json({ message: "Product permanently deleted" });
