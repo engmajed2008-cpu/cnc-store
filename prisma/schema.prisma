@@ -1,0 +1,426 @@
+// ═══════════════════════════════════════════════════════════════
+// Metal Art — Prisma Schema
+// Database: PostgreSQL (via Supabase)
+// Generator: Prisma Client + Zod (for type-safe validation)
+// ═══════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+// Optional: generate Zod schemas automatically
+// generator zod {
+//   provider = "zod-prisma-types"
+//   output   = "../src/types/zod"
+// }
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // bypasses connection pooler for migrations
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════
+
+enum FinishType {
+  raw
+  painted
+  powder
+  anodized
+}
+
+enum UrgencyType {
+  standard
+  express
+  urgent
+}
+
+enum OrderStatus {
+  pending      // awaiting payment confirmation
+  confirmed    // payment received, queued for production
+  in_progress  // CNC cutting started
+  quality_check
+  ready        // ready for pickup / dispatch
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+enum PaymentMethod {
+  mada
+  visa
+  apple_pay
+  tabby
+  tamara
+  stc_pay
+  bank_transfer
+  whatsapp
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+  partially_refunded
+}
+
+enum ProductStatus {
+  draft
+  active
+  archived
+}
+
+enum AdminRole {
+  super_admin
+  admin
+  manager
+  viewer
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRICING TABLES (replaces hard-coded MATERIAL_RATES)
+// ═══════════════════════════════════════════════════════════════
+
+/// One row per material type (steel, acrylic, cladding, wood, ...)
+model Material {
+  id                String    @id @default(cuid())
+  slug              String    @unique // "steel", "acrylic", etc.
+  nameAr            String    // "حديد / ستيل"
+  nameEn            String    // "Steel / Iron"
+  descriptionAr     String    @default("")
+  descriptionEn     String    @default("")
+  icon              String    @default("🔩")
+  color             String    @default("#6B7280") // hex for UI badge
+
+  // ── Price engine fields ──────────────────────────────────
+  basePricePerCm2   Decimal   @db.Decimal(10, 6) // SAR per cm²
+  cuttingMultiplier Decimal   @db.Decimal(6, 4)  // relative cutting difficulty
+  minOrderSAR       Decimal   @db.Decimal(10, 2)
+
+  // ── Thickness options (stored as JSON array of ints) ─────
+  thicknessOptionsMm Int[]    // [2, 3, 4, 5, 6, 8, 10, 12]
+
+  // ── Allowed finishes for this material ───────────────────
+  allowedFinishes   FinishType[]
+
+  // ── Availability ─────────────────────────────────────────
+  isActive          Boolean   @default(true)
+  sortOrder         Int       @default(0)
+
+  // ── Timestamps ───────────────────────────────────────────
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  priceHistory      MaterialPriceHistory[]
+  orderItems        OrderItem[]
+  thicknessTiers    ThicknessPriceTier[]
+
+  @@map("materials")
+}
+
+/// Thickness-based surcharge tiers — replaces the hard-coded thicknessMultiplier()
+model ThicknessPriceTier {
+  id           String   @id @default(cuid())
+  materialId   String
+  material     Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  minMm        Int      // >= this thickness (mm)
+  maxMm        Int      // <= this thickness (mm) | use 9999 for open-ended
+  multiplier   Decimal  @db.Decimal(6, 4) // e.g. 1.30
+
+  @@unique([materialId, minMm])
+  @@map("thickness_price_tiers")
+}
+
+/// Finish type pricing — replaces FINISH_RATES constant
+model FinishRate {
+  id               String     @id @default(cuid())
+  finish           FinishType @unique
+  nameAr           String
+  nameEn           String
+  pricePerCm2      Decimal    @db.Decimal(10, 6) // SAR per cm²
+  isActive         Boolean    @default(true)
+  sortOrder        Int        @default(0)
+  updatedAt        DateTime   @updatedAt
+
+  @@map("finish_rates")
+}
+
+/// Urgency / delivery time multipliers — replaces URGENCY_MULTIPLIERS
+model UrgencyRate {
+  id           String      @id @default(cuid())
+  urgency      UrgencyType @unique
+  nameAr       String
+  nameEn       String
+  multiplier   Decimal     @db.Decimal(6, 4)
+  leadTimeDays String      // "7-10" | "3-5" | "1-2"
+  isActive     Boolean     @default(true)
+  sortOrder    Int         @default(0)
+  updatedAt    DateTime    @updatedAt
+
+  @@map("urgency_rates")
+}
+
+/// Audit trail — every price change is recorded
+model MaterialPriceHistory {
+  id                String   @id @default(cuid())
+  materialId        String
+  material          Material @relation(fields: [materialId], references: [id])
+  changedBy         String   // admin user id
+  oldPricePerCm2    Decimal  @db.Decimal(10, 6)
+  newPricePerCm2    Decimal  @db.Decimal(10, 6)
+  oldCuttingMult    Decimal  @db.Decimal(6, 4)
+  newCuttingMult    Decimal  @db.Decimal(6, 4)
+  reason            String   @default("")
+  createdAt         DateTime @default(now())
+
+  @@map("material_price_history")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRODUCT CATALOG
+// ═══════════════════════════════════════════════════════════════
+
+model Category {
+  id          String    @id @default(cuid())
+  slug        String    @unique // "cnc", "decor", "signs", "advertising", "design"
+  nameAr      String
+  nameEn      String
+  descAr      String    @default("")
+  descEn      String    @default("")
+  icon        String    @default("📦")
+  coverImage  String?   // Supabase Storage URL
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id            String        @id @default(cuid())
+  slug          String        @unique
+  categoryId    String
+  category      Category      @relation(fields: [categoryId], references: [id])
+
+  // ── Localized content ───────────────────────────────────
+  nameAr        String
+  nameEn        String
+  descriptionAr String        @db.Text
+  descriptionEn String        @db.Text
+  taglineAr     String        @default("")
+  taglineEn     String        @default("")
+
+  // ── Pricing (fixed products, not CNC-calculated) ────────
+  basePriceSAR  Decimal?      @db.Decimal(10, 2) // null = use CNC calculator
+  isCustomPrice Boolean       @default(false)    // true = always use calculator
+
+  // ── Images (Supabase Storage paths) ─────────────────────
+  images        ProductImage[]
+
+  // ── Metadata ─────────────────────────────────────────────
+  tags          String[]      // ["laser", "indoor", "custom"]
+  status        ProductStatus @default(draft)
+  isFeatured    Boolean       @default(false)
+  isBestSeller  Boolean       @default(false)
+  isNew         Boolean       @default(false)
+  sortOrder     Int           @default(0)
+  viewCount     Int           @default(0)
+
+  // ── CNC-specific fields (if this is a CNC product) ──────
+  materialId    String?       // links to Material if CNC product
+  defaultFinish FinishType?
+
+  // ── SEO ──────────────────────────────────────────────────
+  metaTitleAr   String        @default("")
+  metaTitleEn   String        @default("")
+  metaDescAr    String        @default("")
+  metaDescEn    String        @default("")
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  orderItems    OrderItem[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id          String  @id @default(cuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url         String  // Supabase Storage public URL
+  storagePath String  // "products/{productId}/{filename}" — for deletion
+  altAr       String  @default("")
+  altEn       String  @default("")
+  sortOrder   Int     @default(0)
+  isPrimary   Boolean @default(false)
+
+  @@map("product_images")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ORDERS
+// ═══════════════════════════════════════════════════════════════
+
+model Order {
+  id            String        @id @default(cuid())
+  orderNumber   String        @unique // "MA-240101-ABCD"
+
+  // ── Customer ─────────────────────────────────────────────
+  customerName  String
+  customerPhone String        // Saudi mobile 05XXXXXXXX
+  customerEmail String?
+  city          String
+  district      String
+  street        String
+  zipCode       String?
+  deliveryNotes String?
+
+  // ── Financials ───────────────────────────────────────────
+  subtotalSAR   Decimal       @db.Decimal(10, 2)
+  discountSAR   Decimal       @default(0) @db.Decimal(10, 2)
+  shippingSAR   Decimal       @default(0) @db.Decimal(10, 2)
+  vatSAR        Decimal       @db.Decimal(10, 2)
+  totalSAR      Decimal       @db.Decimal(10, 2)
+  couponCode    String?
+
+  // ── Payment ──────────────────────────────────────────────
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(pending)
+  gatewayRef    String?       // external payment ID from Moyasar / Tabby
+  paidAt        DateTime?
+
+  // ── Status ───────────────────────────────────────────────
+  status        OrderStatus   @default(pending)
+
+  // ── Locale ───────────────────────────────────────────────
+  locale        String        @default("ar") // "ar" | "en"
+
+  // ── Timestamps ───────────────────────────────────────────
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  completedAt   DateTime?
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  files         OrderFile[]
+
+  @@index([customerPhone])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String      @id @default(cuid())
+  orderId        String
+  order          Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // ── Product reference (optional) ─────────────────────────
+  productId      String?
+  product        Product?    @relation(fields: [productId], references: [id])
+
+  // ── Material reference ───────────────────────────────────
+  materialId     String?
+  material       Material?   @relation(fields: [materialId], references: [id])
+
+  // ── Snapshot of config at order time ─────────────────────
+  materialSlug   String      // "steel" — snapshot, not FK-dependent
+  materialNameAr String
+  materialNameEn String
+  thicknessMm    Int
+  widthCm        Decimal     @db.Decimal(8, 2)
+  heightCm       Decimal     @db.Decimal(8, 2)
+  quantity       Int
+  finish         FinishType
+  urgency        UrgencyType
+
+  // ── Price snapshot ───────────────────────────────────────
+  unitPriceSAR   Decimal     @db.Decimal(10, 2)
+  totalPriceSAR  Decimal     @db.Decimal(10, 2)
+  areaCm2        Int
+
+  note           String?
+  designFileName String?     // uploaded file name
+
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id])
+  status    OrderStatus
+  note      String?
+  changedBy String?     // admin user id or "system"
+  createdAt DateTime    @default(now())
+
+  @@map("order_status_history")
+}
+
+/// Design files uploaded by customers (stored in Supabase Storage)
+model OrderFile {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  fileName    String
+  storagePath String   // "orders/{orderId}/{filename}"
+  fileSize    Int      // bytes
+  mimeType    String
+  uploadedAt  DateTime @default(now())
+
+  @@map("order_files")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN USERS
+// ═══════════════════════════════════════════════════════════════
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String    // bcrypt hash
+  role         AdminRole @default(viewer)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id          String    @id @default(cuid())
+  adminUserId String
+  token       String    @unique // signed JWT or opaque token
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([token])
+  @@map("admin_sessions")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SITE SETTINGS (key-value store for global config)
+// ═══════════════════════════════════════════════════════════════
+
+model SiteSetting {
+  key       String   @id // "vat_rate" | "usd_rate" | "free_shipping_threshold"
+  value     String   // JSON-serialized
+  label     String   @default("") // human-readable label
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
