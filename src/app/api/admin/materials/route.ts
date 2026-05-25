@@ -13,7 +13,7 @@ import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { withAdminAuth } from "@/lib/db/adminAuth";
 import prisma from "@/lib/db/prisma";
-
+export const dynamic = "force-dynamic";
 // ─────────────────────────────────────────────────────────────
 // GET /api/admin/materials
 // ─────────────────────────────────────────────────────────────
