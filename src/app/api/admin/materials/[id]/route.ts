@@ -5,6 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAdminAuth } from "@/lib/db/adminAuth";
 import prisma from "@/lib/db/prisma";
 
+export async function GET() {
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
+}
+
 export const PATCH = withAdminAuth(async (req: NextRequest, { params, admin }: any) => {
   const { id } = params;
   const body = await req.json().catch(() => null);
