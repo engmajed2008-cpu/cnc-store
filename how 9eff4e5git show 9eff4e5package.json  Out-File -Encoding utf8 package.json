@@ -1,0 +1,59 @@
+[33mcommit 9eff4e50143f83542f0e3fe95761344d04f20d3c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: engmajed2008-cpu <Administration@Alqawafilalarabiyyah.com>
+Date:   Mon May 25 02:57:11 2026 +0300
+
+    fix: fix route handler types
+
+[1mdiff --git a/src/app/api/admin/products/[id]/route.ts b/src/app/api/admin/products/[id]/route.ts[m
+[1mindex 549df9a..acab6f6 100644[m
+[1m--- a/src/app/api/admin/products/[id]/route.ts[m
+[1m+++ b/src/app/api/admin/products/[id]/route.ts[m
+[36m@@ -1,14 +1,14 @@[m
+ import { NextRequest, NextResponse } from "next/server";[m
+[31m-import { prisma } from "@/lib/db/prisma";[m
+[32m+[m[32mimport prisma from "@/lib/db/prisma";[m
+ import { revalidateTag } from "next/cache";[m
+ import { withAdminAuth } from "@/lib/db/adminAuth";[m
+ import { deleteStorageFile, BUCKETS } from "@/lib/storage/supabaseStorage";[m
+ [m
+ // GET /api/admin/products/[id][m
+ export const GET = withAdminAuth([m
+[31m-  async (_req: NextRequest, { params }: { params: { id: string } }) => {[m
+[32m+[m[32m  async (req: NextRequest, ctx: { params: Record<string, string> }) => {[m
+     const product = await prisma.product.findUnique({[m
+[31m-      where: { id: params.id },[m
+[32m+[m[32m      where: { id: ctx.params.id },[m
+       include: {[m
+         category: { select: { id: true, slug: true, nameAr: true, nameEn: true } },[m
+         images: { orderBy: { sortOrder: "asc" } },[m
+[36m@@ -31,11 +31,11 @@[m [mexport const GET = withAdminAuth([m
+ [m
+ // PATCH /api/admin/products/[id][m
+ export const PATCH = withAdminAuth([m
+[31m-  async (req: NextRequest, { params }: { params: { id: string } }) => {[m
+[32m+[m[32m  async (req: NextRequest, ctx: { params: Record<string, string> }) => {[m
+     const body = await req.json();[m
+ [m
+     const product = await prisma.product.update({[m
+[31m-      where: { id: params.id },[m
+[32m+[m[32m      where: { id: ctx.params.id },[m
+       data: body,[m
+       include: {[m
+         category: { select: { id: true, slug: true, nameAr: true, nameEn: true } },[m
+[36m@@ -51,13 +51,13 @@[m [mexport const PATCH = withAdminAuth([m
+ [m
+ // DELETE /api/admin/products/[id][m
+ export const DELETE = withAdminAuth([m
+[31m-  async (_req: NextRequest, { params }: { params: { id: string } }) => {[m
+[31m-    const images = await prisma.productImage.findMany({ where: { productId: params.id } });[m
+[32m+[m[32m  async (req: NextRequest, ctx: { params: Record<string, string> }) => {[m
+[32m+[m[32m    const images = await prisma.productImage.findMany({ where: { productId: ctx.params.id } });[m
+     await Promise.allSettled([m
+       images.map((img) => deleteStorageFile(BUCKETS.PRODUCTS, img.storagePath))[m
+     );[m
+ [m
+[31m-    await prisma.product.delete({ where: { id: params.id } });[m
+[32m+[m[32m    await prisma.product.delete({ where: { id: ctx.params.id } });[m
+ [m
+     revalidateTag("products");[m
+     return NextResponse.json({ message: "Product permanently deleted" });[m
