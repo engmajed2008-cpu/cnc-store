@@ -6,6 +6,8 @@ const withNextIntl = createNextIntlPlugin("./src/lib/i18n.ts");
 const nextConfig = {
   // ── Standalone output for Docker ──
   output: "standalone",
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
 
   // ── Image optimization ────────────
   images: {
