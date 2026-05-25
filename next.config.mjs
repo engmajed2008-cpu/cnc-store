@@ -55,12 +55,12 @@ const nextConfig = {
   },
 
   // ── Experimental ──────────────────
-  experimental: {
+   experimental: {
     // Enable partial pre-rendering (Next 14 PPR)
     // ppr: true,
     optimizePackageImports: ["lucide-react", "clsx"],
+    missingSuspenseWithCSRBailout: false,
   },
-
   // ── Logging ───────────────────────
   logging: {
     fetches: { fullUrl: process.env.NODE_ENV === "development" },
