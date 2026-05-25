@@ -58,10 +58,10 @@ const nextConfig = {
 
   // ── Experimental ──────────────────
    experimental: {
-    // Enable partial pre-rendering (Next 14 PPR)
-    // ppr: true,
     optimizePackageImports: ["lucide-react", "clsx"],
     missingSuspenseWithCSRBailout: false,
+    workerThreads: false,
+    cpus: 1,
   },
   // ── Logging ───────────────────────
   logging: {
