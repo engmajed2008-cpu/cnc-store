@@ -11,6 +11,8 @@ import { z } from "zod";
 import { withAdminAuth } from "@/lib/db/adminAuth";
 import prisma from "@/lib/db/prisma";
 
+export const dynamic = "force-dynamic";
+
 // ─── GET /api/admin/settings ────────────────────────────────
 export const GET = withAdminAuth(async () => {
   const settings = await prisma.siteSetting.findMany({
@@ -64,3 +66,4 @@ export const PATCH = withAdminAuth(
   },
   ["super_admin", "admin"] // Only admins can change global settings
 );
+

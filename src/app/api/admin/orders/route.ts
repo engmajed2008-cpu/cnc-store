@@ -3,6 +3,8 @@ import { z } from "zod";
 import { withAdminAuth } from "@/lib/db/adminAuth";
 import prisma from "@/lib/db/prisma";
 
+export const dynamic = "force-dynamic";
+
 export const GET = withAdminAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const page   = Math.max(1, parseInt(searchParams.get("page") ?? "1"));

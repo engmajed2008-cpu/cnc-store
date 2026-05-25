@@ -14,6 +14,8 @@ import { z } from "zod";
 import { withAdminAuth } from "@/lib/db/adminAuth";
 import prisma from "@/lib/db/prisma";
 
+export const dynamic = "force-dynamic";
+
 // ─────────────────────────────────────────────────────────────
 // Validation schemas
 // ─────────────────────────────────────────────────────────────
@@ -120,3 +122,4 @@ export const POST = withAdminAuth(async (req) => {
 
   return NextResponse.json({ product }, { status: 201 });
 });
+
