@@ -34,20 +34,18 @@ async function FAQSection({ locale }: { locale: Locale }) {
   return (
     <div className="space-y-3">
       {faqs.map((faq, i) => (
-        <details key={i} className="glass-card rounded-2xl group">
-          <summary className={clsx(
-            "flex items-center justify-between px-6 py-4 cursor-pointer list-none",
-            "text-brand-off-white font-semibold text-sm",
-            "hover:text-brand-gold transition-colors duration-200",
-            isRTL ? "flex-row-reverse" : "flex-row"
-          )}>
-            <span>{faq.q}</span>
-            <span className="text-brand-gold/60 transition-transform duration-300 group-open:rotate-45 flex-shrink-0 ms-3">+</span>
-          </summary>
-          <div className={clsx("px-6 pb-5 text-brand-silver/80 text-sm leading-relaxed", isRTL ? "text-right" : "text-left")}>
-            {faq.a}
-          </div>
-        </details>
+        <div key={i} className="glass-card rounded-2xl">
+  <div className={clsx(
+    "flex items-center justify-between px-6 py-4",
+    "text-brand-off-white font-semibold text-sm",
+    isRTL ? "flex-row-reverse" : "flex-row"
+  )}>
+    <span>{faq.q}</span>
+  </div>
+  <div className={clsx("px-6 pb-5 text-brand-silver/80 text-sm leading-relaxed", isRTL ? "text-right" : "text-left")}>
+    {faq.a}
+  </div>
+</div>
       ))}
     </div>
   );
