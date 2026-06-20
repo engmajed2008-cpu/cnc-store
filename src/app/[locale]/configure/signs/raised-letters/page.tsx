@@ -2707,13 +2707,13 @@ export default function RaisedLettersPage() {
   const [plan, setPlan] = useState<"free" | "pro" | null>(null);
   const [planMounted, setPlanMounted] = useState(false);
   useEffect(() => {
-    const stored = localStorage.getItem("e3lani_plan") as "free" | "pro" | null;
+    const stored = sessionStorage.getItem("e3lani_plan") as "free" | "pro" | null;
     setPlan(stored ?? null);
     setPlanMounted(true);
   }, []);
   const choosePlan = (p: "free" | "pro") => {
-    localStorage.setItem("e3lani_plan", p);
-    if (p === "pro") localStorage.setItem("e3lani_revisions", "3");
+    sessionStorage.setItem("e3lani_plan", p);
+    if (p === "pro") sessionStorage.setItem("e3lani_revisions", "3");
     setPlan(p);
     if (p === "pro") setRevisions(3);
   };
@@ -2723,7 +2723,7 @@ export default function RaisedLettersPage() {
   const [revisions, setRevisions] = useState<number>(3);
   useEffect(() => {
     if (plan === "pro") {
-      const stored = parseInt(localStorage.getItem("e3lani_revisions") ?? "3", 10);
+      const stored = parseInt(sessionStorage.getItem("e3lani_revisions") ?? "3", 10);
       setRevisions(isNaN(stored) ? 3 : stored);
     }
   }, [plan]);
@@ -3510,7 +3510,7 @@ export default function RaisedLettersPage() {
                     color: revisions > 0 ? "#C9A24B" : "#E51C1C" }}>{revisions}</span>
                 </div>
               )}
-              <button onClick={() => { localStorage.removeItem("e3lani_plan"); localStorage.removeItem("e3lani_revisions"); setPlan(null); }}
+              <button onClick={() => { sessionStorage.removeItem("e3lani_plan"); sessionStorage.removeItem("e3lani_revisions"); setPlan(null); }}
                 title="انقر لتغيير الخطة"
                 style={{ display: "flex", alignItems: "center", gap: 7, padding: "0.4rem 0.9rem", borderRadius: 999, cursor: "pointer",
                   fontFamily: "Tajawal,Cairo,sans-serif", fontSize: "0.72rem", fontWeight: 800, border: "none",
