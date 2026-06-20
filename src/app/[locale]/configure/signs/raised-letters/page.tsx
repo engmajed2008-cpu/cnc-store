@@ -2433,6 +2433,149 @@ function HeightHelpModal({ windowHeightCm, signBottomM, onClose }: { windowHeigh
   );
 }
 
+// ─── Plan Gate ────────────────────────────────────────────────────────────────
+const FREE_FEAT = [
+  { text: "تصميم كامل (نص + شعار + QR)", pro: false },
+  { text: "فحص اشتراطات الأمانة تلقائياً", pro: false },
+  { text: "سعر تقديري فوري",               pro: false },
+  { text: "معاينة ثلاثية الأبعاد",          pro: false },
+  { text: "طلب عروض أسعار من الموردين",    pro: false },
+  { text: "استيراد السجل التجاري (OCR)",   pro: true  },
+  { text: "معاينة واجهة المحل الواقعية",   pro: true  },
+  { text: "ملف امتثال PDF للتقديم",        pro: true  },
+  { text: "ملفات قص جاهزة للإنتاج",       pro: true  },
+  { text: "حفظ التصاميم واسترجاعها",      pro: true  },
+];
+const PRO_FEAT = [
+  "كل مميزات المجانية",
+  "٣ تعديلات مشمولة لكل تصميم",
+  "استيراد السجل التجاري (OCR)",
+  "معاينة واقعية بجودة عالية",
+  "ملف امتثال PDF جاهز للتقديم",
+  "ملفات قص جاهزة للإنتاج",
+  "حفظ التصاميم واسترجاعها",
+  "جميع الخطوط والألوان",
+];
+
+function PlanGate({ onFree, onPro }: { onFree: () => void; onPro: () => void }) {
+  return (
+    <div dir="rtl" style={{
+      position: "fixed", inset: 0, zIndex: 9999, overflowY: "auto",
+      background: "linear-gradient(160deg,#241A11 0%,#19120B 100%)",
+      fontFamily: "Tajawal,Cairo,sans-serif",
+    }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", minHeight: "100%", padding: "2.5rem 1.25rem" }}>
+      {/* خط ذهبي علوي */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: "linear-gradient(90deg,transparent,#C9A24B,#EBCB7C,#C9A24B,transparent)" }} />
+
+      {/* العنوان */}
+      <div style={{ textAlign: "center", marginBottom: "2.25rem", maxWidth: 560 }}>
+        <div style={{ fontSize: "0.7rem", letterSpacing: "0.15em", color: "#9A6A2A",
+          textTransform: "uppercase", marginBottom: "0.6rem" }}>
+          سوق الدعاية والإعلان — إعلاني
+        </div>
+        <h1 style={{ fontSize: "clamp(1.5rem,4vw,2.1rem)", fontWeight: 900, margin: "0 0 0.6rem", color: "#F4ECDD" }}>
+          أداة تصميم اللوحات الإعلانية
+        </h1>
+        <p style={{ fontSize: "0.84rem", color: "#A39584", margin: 0, lineHeight: 1.75 }}>
+          صمّم لوحتك الإعلانية باحتراف — اختر خطتك للبدء
+        </p>
+      </div>
+
+      {/* البطاقتان */}
+      <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap",
+        justifyContent: "center", maxWidth: 860, width: "100%" }}>
+
+        {/* المجانية */}
+        <div style={{ flex: "1 1 340px", maxWidth: 400, background: "rgba(244,236,221,0.05)",
+          border: "1px solid rgba(154,106,42,0.3)", borderRadius: 20, padding: "1.75rem" }}>
+          <div style={{ marginBottom: "1.3rem" }}>
+            <div style={{ fontSize: "0.68rem", letterSpacing: "0.1em", color: "#9A6A2A",
+              textTransform: "uppercase", marginBottom: "0.3rem" }}>الخطة</div>
+            <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#F4ECDD", lineHeight: 1 }}>المجانية</div>
+            <div style={{ marginTop: "0.55rem", fontSize: "1.35rem", fontWeight: 900, color: "#C9A24B" }}>مجاناً</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", marginBottom: "1.6rem" }}>
+            {FREE_FEAT.map(f => (
+              <div key={f.text} style={{ display: "flex", alignItems: "center", gap: 10, opacity: f.pro ? 0.38 : 1 }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex",
+                  alignItems: "center", justifyContent: "center", fontSize: f.pro ? "0.65rem" : "0.7rem", fontWeight: 900,
+                  background: f.pro ? "rgba(154,106,42,0.08)" : "rgba(46,122,62,0.18)",
+                  border: `1px solid ${f.pro ? "rgba(154,106,42,0.28)" : "rgba(46,122,62,0.45)"}`,
+                  color: f.pro ? "#9A6A2A" : "#4ade80" }}>
+                  {f.pro ? "🔒" : "✓"}
+                </span>
+                <span style={{ fontSize: "0.81rem", color: f.pro ? "#6B5A4A" : "#DDD0BB" }}>{f.text}</span>
+              </div>
+            ))}
+          </div>
+          <button onClick={onFree}
+            style={{ width: "100%", padding: "0.85rem", borderRadius: 12, cursor: "pointer",
+              fontFamily: "Tajawal,Cairo,sans-serif", fontWeight: 800, fontSize: "0.88rem",
+              border: "1.5px solid rgba(201,162,75,0.45)", background: "transparent", color: "#C9A24B" }}>
+            ابدأ مجاناً ←
+          </button>
+        </div>
+
+        {/* الاحترافية */}
+        <div style={{ flex: "1 1 340px", maxWidth: 400, position: "relative",
+          background: "linear-gradient(145deg,rgba(201,162,75,0.13),rgba(201,162,75,0.05))",
+          border: "1.5px solid rgba(201,162,75,0.55)", borderRadius: 20, padding: "1.75rem",
+          boxShadow: "0 0 48px rgba(201,162,75,0.13)" }}>
+          <div style={{ position: "absolute", top: -13, right: 22,
+            background: "linear-gradient(135deg,#9A7B36,#E6CA83)", borderRadius: 999,
+            padding: "0.22rem 0.9rem", fontSize: "0.63rem", fontWeight: 900, color: "#2C1E15" }}>
+            ✦ موصى به
+          </div>
+          <div style={{ marginBottom: "1.3rem" }}>
+            <div style={{ fontSize: "0.68rem", letterSpacing: "0.1em", color: "#C9A24B",
+              textTransform: "uppercase", marginBottom: "0.3rem" }}>الخطة</div>
+            <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#F4ECDD", lineHeight: 1 }}>الاحترافية</div>
+            <div style={{ marginTop: "0.55rem", display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: "1.35rem", fontWeight: 900,
+                background: "linear-gradient(135deg,#C9A24B,#EBCB7C)",
+                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>٢٩ ر.س</span>
+              <span style={{ fontSize: "0.7rem", color: "#9A6A2A" }}>/ تصميم</span>
+            </div>
+            <div style={{ marginTop: "0.4rem", display: "inline-block", fontSize: "0.67rem", color: "#9A6A2A",
+              background: "rgba(154,106,42,0.12)", borderRadius: 8, padding: "0.28rem 0.65rem",
+              border: "1px solid rgba(154,106,42,0.22)", lineHeight: 1.5 }}>
+              تُحسم من فاتورة التنفيذ إذا أكملت الطلب عبر المنصة
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", marginBottom: "1.6rem" }}>
+            {PRO_FEAT.map(f => (
+              <div key={f} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex",
+                  alignItems: "center", justifyContent: "center", fontSize: "0.7rem", fontWeight: 900,
+                  background: "rgba(201,162,75,0.2)", border: "1px solid rgba(201,162,75,0.5)", color: "#C9A24B" }}>✓</span>
+                <span style={{ fontSize: "0.81rem", color: "#DDD0BB" }}>{f}</span>
+              </div>
+            ))}
+          </div>
+          <button onClick={onPro}
+            style={{ width: "100%", padding: "0.85rem", borderRadius: 12, cursor: "pointer",
+              fontFamily: "Tajawal,Cairo,sans-serif", fontWeight: 900, fontSize: "0.88rem", border: "none",
+              background: "linear-gradient(135deg,#9A7B36 0%,#E6CA83 50%,#F7E7C4 100%)",
+              color: "#2C1E15", boxShadow: "0 4px 24px rgba(201,162,75,0.28)" }}>
+            سجّل الدخول وابدأ الاحترافية ←
+          </button>
+          <div style={{ marginTop: "0.65rem", textAlign: "center", fontSize: "0.62rem", color: "#6B5A4A", lineHeight: 1.6 }}>
+            يتطلب تسجيل الدخول · الدفع ٢٩ ر.س عبر بوابة آمنة
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "1.75rem", fontSize: "0.7rem", color: "#5A4A3A", textAlign: "center" }}>
+        يمكنك الترقية في أي وقت من داخل الأداة
+      </div>
+      </div>{/* end inner centering div */}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function RaisedLettersPage() {
   const locale = useLocale();
@@ -2559,6 +2702,31 @@ export default function RaisedLettersPage() {
   const [visitedSections, setVisitedSections] = useState<string[]>([]);
   const [ignoredRules, setIgnoredRules] = useState<string[]>([]);
   const [confirmedSections, setConfirmedSections] = useState<string[]>([]);
+
+  // ── خطة الاستخدام (مجانية / احترافية) ───────────────────────────────────
+  const [plan, setPlan] = useState<"free" | "pro" | null>(null);
+  const [planMounted, setPlanMounted] = useState(false);
+  useEffect(() => {
+    const stored = localStorage.getItem("e3lani_plan") as "free" | "pro" | null;
+    setPlan(stored ?? null);
+    setPlanMounted(true);
+  }, []);
+  const choosePlan = (p: "free" | "pro") => {
+    localStorage.setItem("e3lani_plan", p);
+    if (p === "pro") localStorage.setItem("e3lani_revisions", "3");
+    setPlan(p);
+    if (p === "pro") setRevisions(3);
+  };
+  const isPro = () => plan === "pro";
+
+  // عداد التعديلات (٣ لكل تصميم مدفوع)
+  const [revisions, setRevisions] = useState<number>(3);
+  useEffect(() => {
+    if (plan === "pro") {
+      const stored = parseInt(localStorage.getItem("e3lani_revisions") ?? "3", 10);
+      setRevisions(isNaN(stored) ? 3 : stored);
+    }
+  }, [plan]);
   const SECTION_ORDER = ["location", "dims", "material", "text", "light", "install"];
   const toggleSection = (id: string) => {
     setVisitedSections(p => p.includes(id) ? p : [...p, id]);
@@ -3307,6 +3475,17 @@ export default function RaisedLettersPage() {
   return (
     <div dir="rtl" className={FONT_VARIABLE_CLASSES} style={{ minHeight: "100vh", background: "#F4EFE6", fontFamily: "Tajawal, Cairo, sans-serif", color: "#2C1E15" }}>
 
+      {/* ── شاشة اختيار الخطة — تظهر عند أول دخول ── */}
+      {planMounted && !plan && (
+        <PlanGate
+          onFree={() => choosePlan("free")}
+          onPro={() => {
+            const next = encodeURIComponent(`/${locale}/configure/signs/raised-letters`);
+            window.location.href = `/${locale}/login?next=${next}&plan=pro`;
+          }}
+        />
+      )}
+
       {/* ── Header ── */}
       <div style={{ padding: "0.85rem 0", borderBottom: "1px solid rgba(154,106,42,0.2)", background: "#F2E8D0" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
@@ -3320,6 +3499,28 @@ export default function RaisedLettersPage() {
               لوحات المتاجر <span style={GT}>— صمّم لافتتك</span>
             </h1>
           </div>
+          {/* badge الخطة + تبديل */}
+          {planMounted && plan && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {isPro() && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0.35rem 0.75rem",
+                  borderRadius: 999, background: "rgba(154,106,42,0.12)", border: "1px solid rgba(154,106,42,0.25)" }}>
+                  <span style={{ fontSize: "0.68rem", color: "#9A6A2A", fontWeight: 700 }}>تعديلات متبقية:</span>
+                  <span style={{ fontSize: "0.8rem", fontWeight: 900,
+                    color: revisions > 0 ? "#C9A24B" : "#E51C1C" }}>{revisions}</span>
+                </div>
+              )}
+              <button onClick={() => { localStorage.removeItem("e3lani_plan"); localStorage.removeItem("e3lani_revisions"); setPlan(null); }}
+                title="انقر لتغيير الخطة"
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "0.4rem 0.9rem", borderRadius: 999, cursor: "pointer",
+                  fontFamily: "Tajawal,Cairo,sans-serif", fontSize: "0.72rem", fontWeight: 800, border: "none",
+                  background: isPro() ? "linear-gradient(135deg,#9A7B36,#E6CA83)" : "rgba(154,106,42,0.15)",
+                  color: isPro() ? "#2C1E15" : "#9A6A2A" }}>
+                {isPro() ? "✦ احترافية" : "مجانية"}
+                <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>· تغيير</span>
+              </button>
+            </div>
+          )}
           {/* ── شريط الأوضاع — بالمنتصف ── */}
           <div style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: "0.4rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, padding: 5, borderRadius: 999, background: "#F2E8D0", border: "1px solid rgba(154,106,42,0.3)", boxShadow: "0 8px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)" }}>
@@ -3445,10 +3646,17 @@ export default function RaisedLettersPage() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
                     تأكيد الطلب عبر واتساب
                   </a>
-                  <button onClick={() => flash("جاري تجهيز PDF…")}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.45rem", padding: "0.65rem", borderRadius: 12, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 700, fontSize: "0.78rem", border: `1px solid ${GOLD}35`, background: "rgba(201,162,75,0.06)", color: GOLD }}>
-                    ⬇ تحميل مواصفات التصميم PDF
-                  </button>
+                  {isPro() ? (
+                    <button onClick={() => flash("جاري تجهيز PDF…")}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.45rem", padding: "0.65rem", borderRadius: 12, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 700, fontSize: "0.78rem", border: `1px solid ${GOLD}35`, background: "rgba(201,162,75,0.06)", color: GOLD }}>
+                      ⬇ تحميل مواصفات التصميم PDF
+                    </button>
+                  ) : (
+                    <button onClick={() => choosePlan("pro")}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.45rem", padding: "0.65rem", borderRadius: 12, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 700, fontSize: "0.78rem", border: "1px solid rgba(154,106,42,0.25)", background: "rgba(154,106,42,0.06)", color: "#9A6A2A" }}>
+                      🔒 ملف PDF — الخطة الاحترافية
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -3901,10 +4109,17 @@ export default function RaisedLettersPage() {
               {/* استيراد سريع من السجل التجاري — يضيف اسم المنشأة و QR للتصميم */}
               <div style={{ marginBottom: "0.85rem", padding: "0.7rem 0.8rem", borderRadius: 11, background: "rgba(201,162,75,0.08)", border: "1px dashed rgba(154,106,42,0.4)" }}>
                 <input ref={crRef} type="file" accept="application/pdf,image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleCR(f); e.currentTarget.value = ""; }} />
-                <button onClick={() => crRef.current?.click()} disabled={crBusy}
-                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "0.6rem", borderRadius: 9, border: "none", cursor: crBusy ? "wait" : "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.78rem", background: G, color: "#2C1E15", opacity: crBusy ? 0.7 : 1 }}>
-                  {crBusy ? "⏳ جارٍ القراءة…" : "📄 استيراد من السجل التجاري"}
-                </button>
+                {isPro() ? (
+                  <button onClick={() => crRef.current?.click()} disabled={crBusy}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "0.6rem", borderRadius: 9, border: "none", cursor: crBusy ? "wait" : "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.78rem", background: G, color: "#2C1E15", opacity: crBusy ? 0.7 : 1 }}>
+                    {crBusy ? "⏳ جارٍ القراءة…" : "📄 استيراد من السجل التجاري"}
+                  </button>
+                ) : (
+                  <button onClick={() => choosePlan("pro")}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "0.6rem", borderRadius: 9, border: "1px solid rgba(154,106,42,0.3)", cursor: "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.78rem", background: "rgba(154,106,42,0.08)", color: "#9A6A2A" }}>
+                    🔒 استيراد السجل التجاري — الخطة الاحترافية
+                  </button>
+                )}
                 <div style={{ marginTop: "0.45rem", fontSize: "0.6rem", color: "#8A7A66", lineHeight: 1.55, textAlign: "center" }}>
                   ارفع ملف السجل (PDF أو صورة) — نقرأ منه <strong>اسم المنشأة</strong> و<strong>رمز QR</strong> ونضيفهما للتصميم تلقائياً (يمكنك تعديل الاسم بعدها).
                 </div>
