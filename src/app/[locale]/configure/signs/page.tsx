@@ -15,6 +15,7 @@ const subcategories = [
     order: 1,
     icon: "🏢",
     badge: "OUTDOOR",
+    href: "raised-letters",
     gridClass: "md:col-span-2 md:row-span-1",
     nameAr: "اللوحات الخارجية والواجهات",
     nameEn: "Outdoor & Facade Signs",
@@ -181,10 +182,13 @@ function SubCatCard({ cat, ar, locale, index, image, overrideName, overrideDesc 
   const desc   = overrideDesc ?? (ar ? cat.descAr : cat.descEn);
   const target = ar ? cat.targetAr : cat.targetEn;
   const router = useRouter();
+  const dest = (cat as any).href
+    ? `/${locale}/configure/signs/${(cat as any).href}`
+    : `/${locale}/configure/signs/${cat.id}`;
 
   return (
     <div
-      onClick={() => router.push(`/${locale}/configure/signs/${cat.id}`)}
+      onClick={() => router.push(dest)}
       className={clsx(
         "group relative rounded-2xl overflow-hidden",
         "border transition-all duration-500",
@@ -224,7 +228,7 @@ function SubCatCard({ cat, ar, locale, index, image, overrideName, overrideDesc 
       <div className={clsx("absolute inset-0 p-5 flex flex-col justify-between z-10", ar ? "items-end text-right" : "items-start text-left")}>
         {/* Top — arrow only */}
         <div className={clsx("flex items-start w-full", ar ? "justify-start" : "justify-end")}>
-          <Link href={`/${locale}/configure/signs/${cat.id}`} onClick={e => e.stopPropagation()} style={{
+          <Link href={dest} onClick={e => e.stopPropagation()} style={{
             width: 32, height: 32, borderRadius: "50%",
             background: cat.accentColor + "15",
             border: `1.5px solid ${cat.accentColor}30`,
