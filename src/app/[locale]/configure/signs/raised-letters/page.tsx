@@ -3480,8 +3480,8 @@ export default function RaisedLettersPage() {
         <PlanGate
           onFree={() => choosePlan("free")}
           onPro={() => {
-            const next = encodeURIComponent(`/${locale}/configure/signs/raised-letters`);
-            window.location.href = `/${locale}/login?next=${next}&plan=pro`;
+            const back = encodeURIComponent(`/${locale}/configure/signs/raised-letters`);
+            window.location.href = `/${locale}/pay/designer-pro?back=${back}`;
           }}
         />
       )}
