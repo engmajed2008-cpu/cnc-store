@@ -8,7 +8,13 @@ import {
 import localFont from "next/font/local";
 
 // خط محلي مستضاف ذاتياً — سُكَّر بلاك (الخط القياسي للوحات التموينات)
-const sukar = localFont({ src: "./local-fonts/Sukar-Black.ttf", display: "swap", variable: "--font-sukar", preload: false });
+const sukar = localFont({
+  src: [
+    { path: "./local-fonts/Sugar-Black.woff", format: "woff" },
+    { path: "./local-fonts/Sukar-Black.ttf",  format: "truetype" },
+  ],
+  display: "swap", variable: "--font-sukar", preload: false,
+});
 
 // لتخفيف التحميل: القاهرة (خط الموقع الأساسي) تُحمَّل preload؛ بقية خطوط المصمّم بوزن واحد وبلا preload (تُحمَّل عند الحاجة)
 // — عربي —

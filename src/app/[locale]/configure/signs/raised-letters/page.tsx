@@ -7,6 +7,7 @@ import { analyzeSvgString, type SvgAnalysis } from "@/lib/design/analyzeSvg";
 import { FONT_CATALOG, FONT_BY_ID as FONT_CAT_BY_ID, DEFAULT_ENABLED_FONT_IDS, FONT_VARIABLE_CLASSES } from "@/lib/fonts";
 import Sign3DPreview from "@/components/product/Sign3DPreview";
 import SignMockupPreview from "@/components/product/SignMockupPreview";
+import MaterialModal, { type MaterialSelection } from "@/components/product/MaterialModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const GOLD = "#C9A24B";
@@ -103,6 +104,17 @@ const TYPE_BY_ID: Record<string, typeof SIGN_TYPES[0]> = {};
 SIGN_TYPES.forEach(t => { TYPE_BY_ID[t.id] = t; });
 const MAT_RATE = (id: string) => (TYPE_BY_ID[id] || SIGN_TYPES[0]).rate;
 
+// أنماط جوانب الحروف (المخرّمة) — ثابتة كـ fallback، تُحمَّل ديناميكياً من DB عند التشغيل
+type SideStyleDef = { slug: string; nameAr: string; descriptionAr: string; priceAddPercent: number; metalOnly: boolean; icon: string };
+const FALLBACK_SIDE_STYLES: SideStyleDef[] = [
+  { slug: "solid",    nameAr: "صماء",          descriptionAr: "جانب مصمت — الخيار الأساسي",      priceAddPercent: 0,  metalOnly: true, icon: "▬" },
+  { slug: "dots",     nameAr: "نقاط دائرية",   descriptionAr: "ثقوب دائرية — ضوء ناعم",          priceAddPercent: 8,  metalOnly: true, icon: "⁞" },
+  { slug: "slots",    nameAr: "شرائح أفقية",   descriptionAr: "فتحات مستطيلة — ضوء مخطط",        priceAddPercent: 8,  metalOnly: true, icon: "☰" },
+  { slug: "squares",  nameAr: "مربعات هندسية", descriptionAr: "فتحات مربعة — مظهر عصري",         priceAddPercent: 10, metalOnly: true, icon: "▦" },
+  { slug: "diamonds", nameAr: "معينات",        descriptionAr: "فتحات ماسية — مظهر فاخر",         priceAddPercent: 10, metalOnly: true, icon: "◆" },
+  { slug: "arabic",   nameAr: "نمط عربي",      descriptionAr: "زخرفة عربية — ضوء دافئ ومتوهج",  priceAddPercent: 15, metalOnly: true, icon: "✦" },
+];
+
 const LIGHT_TYPES = [
   { id: "none",   label: "بدون إضاءة", hint: "حروف صماء",      ledFactor: 0 },
   { id: "front",  label: "أمامية +35%", hint: "وجه مضيء",      ledFactor: 0.35 },
@@ -116,12 +128,14 @@ const LIGHT_TEMPS = [
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TextLayer = { kind: "text"; id: string; text: string; lang: string; fontId: string; heightCm: number; colorId: string; colorHex?: string; x: number; y: number; stretchX?: number; stretchY?: number };
-type LogoLayer = { kind: "logo"; id: string; src: string; widthCm: number; x: number; y: number; stretchX?: number; stretchY?: number };
-type QRLayer   = { kind: "qr";   id: string; value: string; sizeCm: number; x: number; y: number; stretchX?: number; stretchY?: number };
+type TextLayer  = { kind: "text";  id: string; text: string; lang: string; fontId: string; heightCm: number; colorId: string; colorHex?: string; x: number; y: number; stretchX?: number; stretchY?: number };
+type LogoLayer  = { kind: "logo";  id: string; src: string; widthCm: number; x: number; y: number; stretchX?: number; stretchY?: number };
+type QRLayer    = { kind: "qr";    id: string; value: string; sizeCm: number; x: number; y: number; stretchX?: number; stretchY?: number };
 // تصميم SVG مرفوع: يُقرأ ويُعرض ويُسعَّر تلقائياً — perimScale = محيط القص (سم) لكل 1 سم من العرض
-type SvgLayer  = { kind: "svg";  id: string; src: string; name: string; widthCm: number; aspect: number; perimScale: number; x: number; y: number; text?: string; colorId?: string; originalColors?: boolean; stretchX?: number; stretchY?: number };
-type Layer = TextLayer | LogoLayer | QRLayer | SvgLayer;
+type SvgLayer   = { kind: "svg";   id: string; src: string; name: string; widthCm: number; aspect: number; perimScale: number; x: number; y: number; text?: string; colorId?: string; originalColors?: boolean; stretchX?: number; stretchY?: number };
+// شكل هندسي ملوّن: مستطيل | دائرة | خط | مثلث — يوضع خلف النصوص أو فوقها حسب ترتيب الطبقات
+type ShapeLayer = { kind: "shape"; id: string; shapeType: "rect" | "circle" | "line" | "triangle"; colorHex: string; widthCm: number; heightCm: number; x: number; y: number; rotation?: number; stretchX?: number; stretchY?: number };
+type Layer = TextLayer | LogoLayer | QRLayer | SvgLayer | ShapeLayer;
 
 type AppState = {
   mount: string; bgMode: string; bgMaterial: string; lightboxFace: string; bgW: number; bgH: number; bgD: number; bgColorId: string; bgCustomColor: string;
@@ -137,9 +151,11 @@ type AppState = {
   cFaceCustomColor: string; cSideCustomColor: string;
   // هل خامة الوجه = خامة الجوانب لكل مجموعة؟ (true → خيار واحد للاثنين وبلا إطار)
   uniMatText: boolean; uniMatContent: boolean;
+  sideStyleId: string; // نمط الجوانب: "solid" | "dots" | "slots" | "squares" | "diamonds" | "arabic"
   lightTypeId: string; lightTempId: string; bgLightTempId: string; night: boolean;
   contentMode: string; uploadName: string | null; letterDepthCm: number;
   wantInstall: boolean; installRegion: string; installHeightM: number; craneNeeded: boolean;
+  nationalAddress: string;
   // الموقع: المدينة + نوع الشارع → تُحدِّد الأمانة التي تُطبَّق اشتراطاتها على التصميم
   city: string; streetType: string;
   // نوع المنشأة + نوع اللوحة + سياق الواجهة (أساس فحص اشتراطات الأمانة)
@@ -173,22 +189,26 @@ const cityById = (id: string) => CITIES.find(c => c.id === id) || CITIES[0];
 
 // أنواع اللوحات (تُطبَّق على مراحل — المرحلة الأولى: الموازية لسطح الواجهة)
 const SIGN_KINDS = [
-  { id: "parallel",   label: "موازية لسطح الواجهة", ready: true },
-  { id: "projecting", label: "متعامدة على الواجهة",  ready: false },
-  { id: "brand",      label: "علامة تجارية (أعلى المبنى)", ready: false },
-  { id: "entrance",   label: "لوحة مدخل",            ready: false },
-  { id: "tenant",     label: "مستأجري الأدوار العليا", ready: false },
-  { id: "directory",  label: "تعريفية جامعة",        ready: false },
-  { id: "flags",      label: "أعلام",                ready: false },
-  { id: "freestanding", label: "قائمة بذاتها",        ready: false },
+  { id: "parallel",        label: "موازية لسطح الواجهة",                         ready: true },
+  { id: "acrylic",         label: "لوحة أكريليك",                                ready: true },
+  { id: "acrylic-indoor",  label: "لوحة أكريليك داخلية",                        ready: true },
+  { id: "upper-facade",    label: "لوحة على واجهة المبنى بالأدوار العليا",      ready: true },
+  { id: "tenant",          label: "لوحة قائمة بذاتها",                          ready: true },
+  { id: "projecting",      label: "متعامدة على الواجهة",                         ready: false },
+  { id: "brand",           label: "علامة تجارية (أعلى المبنى)",                  ready: false },
+  { id: "entrance",        label: "لوحة مدخل",                                   ready: false },
+  { id: "directory",       label: "تعريفية جامعة",                               ready: false },
+  { id: "flags",           label: "أعلام",                                        ready: false },
+  { id: "freestanding",    label: "قائمة بذاتها",                               ready: false },
 ];
 
-// نوع المنشأة يحدّد أنواع اللوحات المسموح بها (المستشفيات/الفنادق تُتاح لها أنواع أكثر — دليل أمانة جدة)
+// نوع المنشأة يحدّد أنواع اللوحات المسموح بها (دليل أمانة جدة)
 const ESTABLISHMENTS = [
-  { id: "store",       label: "متجر / محل تجاري", kinds: ["parallel", "projecting", "entrance"], special: false },
-  { id: "hospital",    label: "مستشفى",           kinds: ["parallel", "entrance", "projecting", "brand", "directory", "flags"], special: false },
-  { id: "hotel",       label: "فندق",             kinds: ["parallel", "entrance", "projecting", "brand", "directory", "flags"], special: false },
-  { id: "supermarket", label: "تموينات (سوبر ماركت)", kinds: ["parallel"], special: true },
+  { id: "store",        label: "متجر / محل تجاري",       kinds: ["parallel", "acrylic", "projecting", "entrance"], special: false },
+  { id: "hotel",        label: "فندق أو مستشفى",         kinds: ["parallel", "acrylic", "entrance", "projecting", "brand", "directory", "flags"], special: false },
+  { id: "office",       label: "مكتب داخلي",             kinds: ["acrylic-indoor", "upper-facade", "tenant"], special: false },
+  { id: "building",     label: "مبنى إداري / تجاري",    kinds: ["brand", "upper-facade", "tenant"], special: false },
+  { id: "supermarket",  label: "تموينات (سوبر ماركت)",   kinds: ["parallel"], special: true },
 ];
 const estById = (id: string) => ESTABLISHMENTS.find(e => e.id === id) || ESTABLISHMENTS[0];
 
@@ -198,9 +218,10 @@ function contentSpec(estType: string): { mandatory: ContentReq[]; optional: Cont
   if (estType === "supermarket") return {
     mandatory: [
       { key: "arname", label: "اسم المنشأة بالعربية", icon: "أ", hint: "مطابق لاسم السجل التجاري" },
-      { key: "qr",     label: "رقم السجل التجاري (QR)", icon: "▦", hint: "إلزامي على لوحة التموينات" },
+      { key: "qr",     label: "رقم السجل التجاري (CR)", icon: "▦", hint: "إلزامي على لوحة التموينات" },
     ],
     optional: [
+      { key: "enname", label: "اسم المنشأة بالإنجليزية", icon: "A", hint: "يتطلّب علامة تجارية مسجّلة" },
       { key: "logo",  label: "الشعار الموحّد", icon: "🖼", hint: "ضمن التصميم الأخضر الموحّد" },
       { key: "phone", label: "رقم التواصل", icon: "✆" },
     ],
@@ -218,12 +239,17 @@ function contentSpec(estType: string): { mandatory: ContentReq[]; optional: Cont
     ],
   };
 }
-// اللون الأخضر المعتمد للوحات التموينات (مشتق من Pantone 7480/328 بدليل الوزارة)
-const SUPERMARKET_GREEN = "#0E9D57";
+// ألوان لوحات التموينات الموحّدة (وزارة البلديات والإسكان):
+// Pantone 328 = خلفية رئيسية داكنة | Pantone 7480 = شريط سفلي فاتح | Pantone 115 = لوجو أصفر
+const SUPERMARKET_GREEN       = "#006B54"; // Pantone 328 C — خلفية اللوحة الرئيسية (أخضر غامق)
+const SUPERMARKET_STRIP_CM    = 12; // ارتفاع الشريط السفلي ثابت 12 سم بغض النظر عن ارتفاع اللوحة
+const SUPERMARKET_STRIP_COLOR = "#3DB16B";          // Pantone 7480 C — الشريط السفلي (أخضر فاتح)
+const SUPERMARKET_CART_SRC    = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjY3MTQgMjAxMTEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZmlsbD0iI0ZBRDcxRiIgZmlsbC1ydWxlPSJub256ZXJvIiBkPSJNMTMzMDEuNTQgMjAxMTAuNzljLTE2MDIuMywwIC0yODk4LjI2LC0xMjkzLjcxIC0yODk4LjI2LC0yODk2LjAyIDAsLTE2MDIuMyAxMjk1Ljk3LC0yODk4LjI2IDI4OTguMjYsLTI4OTguMjYgMTYwNC40LDAgMjkwMC4yOCwxMjk1Ljk3IDI5MDAuMjgsMjg5OC4yNiAwLDE2MDIuMzEgLTEyOTUuODgsMjg5Ni4wMiAtMjkwMC4yOCwyODk2LjAyem0wIC00MDg5Ljc2Yy02ODAuOTYsMCAtMTE5My43NSw1NDQuNzIgLTExOTMuNzUsMTE5My43NSAwLDY0Ni44NiA1MTIuNzksMTE5MS41OCAxMTkzLjc1LDExOTEuNTggNjQ4Ljk1LDAgMTE5My43NSwtNTQ0LjcyIDExOTMuNzUsLTExOTEuNTggMCwtNjQ5LjAzIC01NDQuOCwtMTE5My43NSAtMTE5My43NSwtMTE5My43NXoiLz48cGF0aCBmaWxsPSIjRkFENzFGIiBmaWxsLXJ1bGU9Im5vbnplcm8iIGQ9Ik0yMDIyNS43MiAyMDExMC43OWMtMTYwMi4zMSwwIC0yODk4LjE5LC0xMjkzLjcxIC0yODk4LjE5LC0yODk2LjAyIDAsLTE2MDIuMyAxMjk1Ljg4LC0yODk4LjI2IDI4OTguMTksLTI4OTguMjYgMTYwNC40OCwwIDI5MzQuMzgsMTI5NS45NyAyOTM0LjM4LDI4OTguMjYgMCwxNjAyLjMxIC0xMzI5LjksMjg5Ni4wMiAtMjkzNC4zOCwyODk2LjAyem0wIC00MDg5Ljc2Yy02NDYuODYsMCAtMTE5My43NSw1NDQuNzIgLTExOTMuNzUsMTE5My43NSAwLDY0Ni44NiA1NDYuODgsMTE5MS41OCAxMTkzLjc1LDExOTEuNTggNjgzLjA1LDAgMTIyNy44NCwtNTQ0LjcyIDEyMjcuODQsLTExOTEuNTggMCwtNjQ5LjAzIC01NDQuOCwtMTE5My43NSAtMTIyNy44NCwtMTE5My43NXoiLz48cGF0aCBmaWxsPSIjRkFENzFGIiBmaWxsLXJ1bGU9Im5vbnplcm8iIGQ9Ik0xNjU0Mi4zNCAxNDA0NC4xOWMtNjY1MS44NiwwIC0xMjE0MS44OSwtNTExMy40MSAtMTI3NTYuODMsLTExNTkwLjc1bC0yNTU3Ljc0IDBjLTY4My4wNSwwIC0xMjI3Ljc2LC01NDQuNzIgLTEyMjcuNzYsLTEyMjcuNzYgMCwtNjgwLjk2IDU0NC43MiwtMTIyNS42OCAxMjI3Ljc2LC0xMjI1LjY4bDQ5NzkuMzQgMCAwIDEyMjUuNjhjMCw1Njk0LjI0IDQ2MzguODIsMTAzMzAuOTcgMTAzMzUuMjMsMTAzMzAuOTcgMzEwNC41NiwwIDYwMDIuODMsLTEzNjQuMDEgNzk4MS43NiwtMzc1MS40OSA0NDIuNTgsLTUxMC43IDEyMjcuNzYsLTU3OC44MiAxNzM4LjQ2LC0xMzYuMTYgNTEyLjg3LDQwOC41NiA2MTUuMDEsMTE5My43NSAxNzIuNDMsMTcwNC40NSAtMjQ1NS42MSwyOTY2LjMxIC02MDM5LjAxLDQ2NzAuNzUgLTk4OTIuNjUsNDY3MC43NXoiLz48L3N2Zz4=";
 
 // ─── محرّك فحص الامتثال لاشتراطات أمانة جدة (المرحلة 1: اللوحة الموازية) ─────────
 // يُعيد قائمة مخالفات: {id, msg, fix?} — fix = تصحيح تلقائي يُطبَّق على الحالة.
 type ComplianceWarn = { id: string; msg: string; fix?: Partial<AppState> };
+type SavedProject = { id: string; name: string; type: "raised-letters"; state: AppState; layers: Layer[]; savedAt: number };
 function complianceWarnings(s: AppState, layers: Layer[]): ComplianceWarn[] {
   if (s.signType !== "parallel") return [];
   const w: ComplianceWarn[] = [];
@@ -237,6 +263,9 @@ function complianceWarnings(s: AppState, layers: Layer[]): ComplianceWarn[] {
     if (s.bgH < 80) w.push({ id: "sup-h", msg: `ارتفاع لافتة التموينات ${s.bgH} سم أقل من الحد الأدنى 80 سم.`, fix: { bgH: 80 } });
     // العرض لا يقل عن 300 سم
     if (s.bgW < 300) w.push({ id: "sup-w", msg: `عرض لافتة التموينات ${s.bgW} سم أقل من الحد الأدنى 300 سم.`, fix: { bgW: 300 } });
+    // عرض الواجهة لا يقل عن 300 سم
+    if (s.facadeWidthCm > 0 && s.facadeWidthCm < 300)
+      w.push({ id: "sup-facade-w", msg: `عرض واجهة المحل ${s.facadeWidthCm} سم أقل من الحد الأدنى للتموينات (300 سم).` });
     // العرض = عرض واجهة المتجر
     if (s.facadeWidthCm > 0 && s.bgW !== s.facadeWidthCm)
       w.push({ id: "sup-wfit", msg: `عرض اللافتة يجب أن يساوي عرض واجهة المتجر (${s.facadeWidthCm} سم).`, fix: { bgW: s.facadeWidthCm } });
@@ -268,9 +297,11 @@ function complianceWarnings(s: AppState, layers: Layer[]): ComplianceWarn[] {
     if (!hasQR) w.push({ id: "code", msg: "الرمز التجاري (QR) إلزامي — أضِفه من خطوة «النص والشعار»." });
   }
 
+  // ── لوحة واجهة الأدوار العليا: تشترط استئجار الدور بالكامل ──
+  if (s.signType === "upper-facade")
+    w.push({ id: "upperFacadeFullFloor", msg: "لوحة الواجهة بالأدوار العليا مشروطة باستئجار الدور الذي تقع فيه المنشأة بالكامل — لا يُسمح بها عند مشاركة الدور مع مستأجرين آخرين." });
+
   // ── قواعد مشتركة ──
-  if (s.typeId === "acrylic" && s.sideMat === "acrylic")
-    w.push({ id: "acrylicFull", msg: "لا يجوز تصنيع الحرف من الأكريليك كاملاً (وجه + جوانب)؛ يُستخدم الأكريليك للوجه فقط.", fix: { sideMat: "stainless" } });
   const cols = new Set<string>([s.faceColorId, s.sideColorId, s.cFaceColorId, ...layers.map(l => (l as { colorId?: string }).colorId || "")].filter(Boolean));
   if (cols.has("red") && cols.has("green"))
     w.push({ id: "redgreen", msg: "يُوصى بتجنّب دمج اللونين الأحمر والأخضر معاً (صعوبة الرؤية لمصابي عمى الألوان)." });
@@ -1193,7 +1224,7 @@ function Choice({ options, value, onChange, cols }: { options: { v: string; labe
       {options.map(o => {
         const on = value === o.v;
         return (
-          <button key={o.v} onClick={() => onChange(o.v)} style={{ padding: "0.7rem 0.6rem", borderRadius: 12, cursor: "pointer", fontFamily: "Cairo,sans-serif", textAlign: "center", border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.2)"}`, background: on ? "rgba(201,162,75,0.1)" : "#E8DAC0", color: on ? GOLD : "#5A4A3A", transition: "all 0.15s" }}>
+          <button key={o.v} onClick={() => onChange(o.v)} style={{ padding: "0.7rem 0.6rem", borderRadius: 12, cursor: "pointer", fontFamily: "Cairo,sans-serif", textAlign: "center", border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.2)"}`, background: on ? "#2C1E15" : "#E8DAC0", color: on ? GOLD : "#5A4A3A", transition: "all 0.15s" }}>
             {o.icon && <div style={{ marginBottom: 3 }}>{o.icon}</div>}
             <div style={{ fontSize: "0.82rem", fontWeight: 700 }}>{o.label}</div>
             {o.sub && <div style={{ fontSize: "0.66rem", color: on ? "rgba(201,162,75,0.7)" : "#7A6A5A", marginTop: 2 }}>{o.sub}</div>}
@@ -1304,22 +1335,22 @@ function DimInput({ label, value, unit, readOnly, style, onChange }: {
 
   return (
     <div style={style} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
-      <span style={{ fontSize: "0.55rem", color: "#aaa", marginInlineEnd: 2 }}>{label}</span>
+      <span style={{ fontSize: "0.65rem", color: "#C7B79A", marginInlineEnd: 3, fontWeight: 600 }}>{label}</span>
       {editing && !readOnly ? (
         <input ref={inputRef} autoFocus value={raw} inputMode="numeric"
           onChange={e => setRaw(e.target.value)}
           onBlur={commit}
           onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          style={{ width: 28, background: "transparent", border: "none", outline: "none", color: GOLD, fontWeight: 800, fontSize: "0.65rem", fontFamily: "Cairo,sans-serif", textAlign: "center" }} />
+          style={{ width: 34, background: "rgba(201,162,75,0.15)", border: `1px solid ${GOLD}`, outline: "none", color: "#FFFFFF", fontWeight: 800, fontSize: "0.78rem", fontFamily: "Cairo,sans-serif", textAlign: "center", borderRadius: 4, padding: "0 2px" }} />
       ) : (
         <span
-          style={{ color: GOLD, fontWeight: 800, cursor: readOnly ? "default" : "text", minWidth: 20, textAlign: "center", display: "inline-block" }}
+          style={{ color: "#FFFFFF", fontWeight: 900, cursor: readOnly ? "default" : "text", minWidth: 24, textAlign: "center", display: "inline-block", fontSize: "0.82rem" }}
           onDoubleClick={() => { if (!readOnly) { setRaw(String(value)); setEditing(true); } }}
           onClick={() => { if (!readOnly) { setRaw(String(value)); setEditing(true); } }}>
           {value}
         </span>
       )}
-      <span style={{ fontSize: "0.55rem", color: "#aaa", marginInlineStart: 2 }}>{unit}</span>
+      <span style={{ fontSize: "0.65rem", color: GOLD, marginInlineStart: 2, fontWeight: 600 }}>{unit}</span>
     </div>
   );
 }
@@ -1356,7 +1387,7 @@ function Ruler({ horizontal, length, cm, offset = 0 }: { horizontal: boolean; le
   );
 }
 
-function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, contentCustomColor, light, layers, selectedId, onSelect, onMove, onMoveRaw, onResize, onUpdate, bgLightTempId, night, guides, zoom, materialLabel, faceBorder, frameColor, mergeSel, mergeMode, onSetMergeMode, onToggleMerge, onMerge, onSplit }: {
+function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, contentCustomColor, light, layers, selectedId, onSelect, onMove, onMoveRaw, onResize, onUpdate, bgLightTempId, night, guides, zoom, materialLabel, faceBorder, frameColor, mergeSel, mergeMode, onSetMergeMode, onToggleMerge, onMerge, onSplit, supStrip }: {
   area: { w: number; h: number };
   bg: { add: boolean; showColor?: boolean; material: string; widthCm: number; heightCm: number; depthCm: number; colorHex?: string; illuminated?: boolean };
   faceColorId: string; faceCustomColor?: string; contentColorId?: string; contentCustomColor?: string; light: { typeId: string; tempId: string };
@@ -1373,9 +1404,12 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
   mergeSel: string[]; mergeMode: boolean;
   onSetMergeMode: (v: boolean) => void; onToggleMerge: (id: string) => void;
   onMerge: () => void; onSplit: (id: string) => void;
+  supStrip?: number; // نسبة مئوية من ارتفاع الكانفاس لشريط التموينات السفلي (مثلاً 19.6)
 }) {
   const panelRef      = useRef<HTMLDivElement>(null);
   const dragId        = useRef<string | null>(null);
+  const dragStart     = useRef<{ x: number; y: number } | null>(null); // نقطة بداية الضغط للعتبة
+  const dragLive      = useRef(false); // true بعد تجاوز عتبة 5px
   const resizeRef     = useRef<{ id: string; startX: number; startY: number; origSize: number; cx: number; cy: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [fontTick, setFontTick] = useState(0);
@@ -1434,6 +1468,9 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
       if (lyr && (lyr.kind === "svg" || lyr.kind === "logo" || lyr.kind === "text")) { onToggleMerge(id); return; }
     }
     dragId.current = id;
+    dragLive.current = false;
+    const pt = "touches" in e ? e.touches[0] : e;
+    dragStart.current = { x: pt.clientX, y: pt.clientY };
     onSelect(id);
   };
 
@@ -1485,6 +1522,13 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
       return;
     }
     if (!dragId.current) return;
+    // عتبة السحب: لا تبدأ الحركة حتى يتجاوز المؤشر 5px من نقطة الضغط
+    if (!dragLive.current) {
+      if (!dragStart.current) return;
+      const dist = Math.hypot(e.clientX - dragStart.current.x, e.clientY - dragStart.current.y);
+      if (dist < 5) return;
+      dragLive.current = true;
+    }
     const { x, y } = getPct(e.clientX, e.clientY);
     onMove(dragId.current, x, y);
   }, [getPct, onMove, onResize, onUpdate]);
@@ -1493,10 +1537,16 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
     if (!dragId.current) return;
     e.preventDefault();
     const t = e.touches[0];
+    if (!dragLive.current) {
+      if (!dragStart.current) return;
+      const dist = Math.hypot(t.clientX - dragStart.current.x, t.clientY - dragStart.current.y);
+      if (dist < 5) return;
+      dragLive.current = true;
+    }
     const { x, y } = getPct(t.clientX, t.clientY);
     onMove(dragId.current, x, y);
   }, [getPct, onMove]);
-  const up = () => { dragId.current = null; resizeRef.current = null; stretchRef.current = null; };
+  const up = () => { dragId.current = null; dragStart.current = null; dragLive.current = false; resizeRef.current = null; stretchRef.current = null; };
 
   const HANDLE = 10;
   const handles = (wPx: number, hPx: number, id: string, origSize: number) => [
@@ -1548,10 +1598,10 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
   // نمط شارات الأبعاد (المسافات من حواف اللوحة)
   const dimStyle: React.CSSProperties = {
     position: "absolute", display: "flex", alignItems: "center", justifyContent: "center",
-    gap: 2, background: "#F4EFE6", border: `1px solid ${GOLD}55`,
-    borderRadius: 6, fontFamily: "Cairo,sans-serif", direction: "rtl",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.6)", zIndex: 60, padding: "2px 5px",
-    fontSize: "0.62rem", whiteSpace: "nowrap",
+    gap: 4, background: "#2C1E15", border: `1.5px solid ${GOLD}`,
+    borderRadius: 8, fontFamily: "Cairo,sans-serif", direction: "rtl",
+    boxShadow: "0 3px 12px rgba(0,0,0,0.8)", zIndex: 60, padding: "4px 10px",
+    fontSize: "0.75rem", whiteSpace: "nowrap",
   };
   const MIN_D = 5; // أقل مسافة من حواف اللوحة بالسنتيمتر
   const clampPct = (v: number) => Math.min(100, Math.max(0, v));
@@ -1585,10 +1635,12 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
         {night && isLightbox && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(ellipse 90% 80% at 50% 50%, ${bgGlow}55 0%, ${bgGlow}22 50%, transparent 80%)` }} />}
         {night && isLightbox && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `linear-gradient(180deg, ${bgGlow}08 0%, transparent 40%, ${bgGlow}08 100%)` }} />}
         {night && lit && !isLightbox && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(ellipse 80% 70% at 50% 45%, ${glow}3a 0%, ${glow}14 45%, transparent 72%)` }} />}
+        {/* ── شريط التموينات السفلي (بيانات الاتصال) ── */}
+        {!!supStrip && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${supStrip}%`, background: SUPERMARKET_STRIP_COLOR, pointerEvents: "none", zIndex: 3 }} />}
         {/* ── إطار هامش الأمان 5 سم ── */}
         <div style={{
           position: "absolute",
-          top: `${safeYPct}%`, bottom: `${safeYPct}%`,
+          top: `${safeYPct}%`, bottom: supStrip ? `${supStrip}%` : `${safeYPct}%`,
           left: `${safeXPct}%`, right: `${safeXPct}%`,
           border: `2px dashed ${safeColor}`,
           borderRadius: 2,
@@ -1660,7 +1712,7 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
                     transformOrigin: "center center",
                     WebkitTextStroke: `${2 * (fontPx * CONTOUR_RATIO + Math.max(1, fontPx * CONTOUR_RATIO * 0.3))}px #F4EFE6`,
                     paintOrder: "stroke", pointerEvents: "none", zIndex: -1,
-                  }}>{l.text || "النص"}</span>
+                  }}>{/[؀-ۿ]/.test(l.text || "") ? (l.text || "النص").replace(/[0-9]/g, d => String.fromCharCode(d.charCodeAt(0) + 0x0630)) : (l.text || "النص")}</span>
                 )}
                 <span style={{
                   display: "block",
@@ -1674,7 +1726,7 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
                   // التوهّج بلون الخامة نفسها (الأكريلك يضيء بلونه) مع لمسة من حرارة الإضاءة
                   textShadow: night && lit ? `0 0 ${fontPx * 0.5}px ${baseCol}, 0 0 ${fontPx * 0.22}px ${baseCol}, 0 0 ${fontPx * 0.12}px ${glow}` : (night ? "none" : "0 2px 8px rgba(0,0,0,0.6)"),
                   pointerEvents: "none" }}>
-                  {l.text || "النص"}
+                  {/[؀-ۿ]/.test(l.text || "") ? (l.text || "النص").replace(/[0-9]/g, d => String.fromCharCode(d.charCodeAt(0) + 0x0630)) : (l.text || "النص")}
                 </span>
                 {sel && mounted && (() => {
                   // ── أبعاد المحتوى نفسه (عرض × ارتفاع صندوق الحبر بعد المط) ──
@@ -1700,7 +1752,7 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
                     <div style={{ ...dimStyle, top: fTop + fH + H + 8, left: "50%", transform: "translateX(-50%)", gap: 6 }}>
                       <DimInput label="عرض" value={Math.round(visWcm)} unit="سم" onChange={setW}
                         style={{ display: "flex", alignItems: "center" }} />
-                      <span style={{ color: "#777" }}>×</span>
+                      <span style={{ color: GOLD, fontWeight: 700, fontSize: "0.8rem" }}>×</span>
                       <DimInput label="ارتفاع" value={Math.round(visHcm)} unit="سم" onChange={setH}
                         style={{ display: "flex", alignItems: "center" }} />
                     </div>
@@ -1746,7 +1798,7 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
           const sizeBadge = (wCm: number, hCm: number, setW: (v: number) => void, setH: (v: number) => void) => (
             <div style={{ ...dimStyle, top: "100%", marginTop: 8, left: "50%", transform: "translateX(-50%)", gap: 6 }}>
               <DimInput label="عرض" value={Math.round(wCm)} unit="سم" onChange={setW} style={{ display: "flex", alignItems: "center" }} />
-              <span style={{ color: "#777" }}>×</span>
+              <span style={{ color: GOLD, fontWeight: 700, fontSize: "0.8rem" }}>×</span>
               <DimInput label="ارتفاع" value={Math.round(hCm)} unit="سم" onChange={setH} style={{ display: "flex", alignItems: "center" }} />
             </div>
           );
@@ -1840,6 +1892,44 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
               </div>
             );
           }
+          if (l.kind === "shape") {
+            const sx  = l.stretchX ?? 1;
+            const sy  = l.stretchY ?? 1;
+            const wPx = l.widthCm  * scale * sx;
+            const hPx = l.heightCm * scale * sy;
+            const rot = l.rotation ?? 0;
+            const shapeStyle: React.CSSProperties = {
+              width: wPx, height: hPx, background: l.colorHex, pointerEvents: "none",
+              ...(l.shapeType === "circle"   ? { borderRadius: "50%" } : {}),
+              ...(l.shapeType === "line"     ? { borderRadius: 4, height: Math.max(hPx, 3) } : {}),
+              ...(l.shapeType === "triangle" ? {
+                width: 0, height: 0, background: "transparent",
+                borderLeft:   `${wPx / 2}px solid transparent`,
+                borderRight:  `${wPx / 2}px solid transparent`,
+                borderBottom: `${hPx}px solid ${l.colorHex}`,
+              } : {}),
+            };
+            return (
+              <div key={l.id}
+                onMouseDown={e => down(l.id, e)}
+                onTouchStart={e => down(l.id, e)}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  position: "absolute", left: `${l.x}%`, top: `${l.y}%`,
+                  transform: `translate(-50%,-50%)${rot ? ` rotate(${rot}deg)` : ""}`,
+                  cursor: "grab", outline, outlineOffset: 4,
+                  zIndex: sel ? 30 : 5,
+                  width: wPx, height: l.shapeType === "triangle" ? 0 : hPx,
+                }}>
+                <div style={shapeStyle} />
+                {sel && mounted && sizeBadge(l.widthCm * sx, l.heightCm * sy,
+                  w => onUpdate(l.id, { widthCm: Math.max(2, Math.min(300, Math.round(w / sx))) }),
+                  h => onUpdate(l.id, { heightCm: Math.max(0.5, Math.min(200, Math.round(h / sy))) }))}
+                {sel && handles(wPx, hPx, l.id, l.widthCm)}
+                {numBadge}
+              </div>
+            );
+          }
           return null;
         })}
 
@@ -1881,7 +1971,7 @@ function DesignCanvas({ area, bg, faceColorId, faceCustomColor, contentColorId, 
               const mx = (measure.pts[0].x + measure.pts[1].x) / 2;
               const my = (measure.pts[0].y + measure.pts[1].y) / 2;
               return (
-                <div style={{ position: "absolute", left: `${mx}%`, top: `${my}%`, transform: "translate(-50%,-140%)", background: "#F4EFE6", border: "1px solid #E51C1C", color: "#fff", borderRadius: 6, padding: "2px 9px", fontSize: "0.68rem", fontWeight: 700, fontFamily: "Cairo,sans-serif", whiteSpace: "nowrap", pointerEvents: "none", zIndex: 96 }}>
+                <div style={{ position: "absolute", left: `${mx}%`, top: `${my}%`, transform: "translate(-50%,-140%)", background: "#C0001A", border: "2px solid #FF6B6B", color: "#FFFFFF", borderRadius: 8, padding: "4px 12px", fontSize: "0.82rem", fontWeight: 900, fontFamily: "Cairo,sans-serif", whiteSpace: "nowrap", pointerEvents: "none", zIndex: 96, boxShadow: "0 2px 10px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.15)", letterSpacing: "0.03em" }}>
                   {d.toFixed(1)} سم
                 </div>
               );
@@ -2043,12 +2133,15 @@ function StretchControls({ l, onUpdate }: { l: Layer; onUpdate: (id: string, p: 
 
 // ─── Layer Row ────────────────────────────────────────────────────────────────
 function LayerRow({ l, num, textNum, sel, faceColors, faceColorHex, enabledFontIds, onSelect, onUpdate, onDelete, inMerge, mergeMode, onToggleMerge }: { l: Layer; num: number; textNum: number; sel: boolean; faceColors: string[]; faceColorHex: string; enabledFontIds?: string[]; onSelect: (id: string) => void; onUpdate: (id: string, p: Partial<Layer>) => void; onDelete: (id: string) => void; inMerge: boolean; mergeMode: boolean; onToggleMerge: (id: string) => void }) {
-  const icon = l.kind === "text" ? "T" : l.kind === "logo" ? "🖼" : l.kind === "svg" ? "📐" : "QR";
+  const shapeIcons: Record<string, string> = { rect: "■", circle: "●", line: "━", triangle: "▲" };
+  const icon = l.kind === "text" ? "T" : l.kind === "logo" ? "🖼" : l.kind === "svg" ? "📐" : l.kind === "shape" ? (shapeIcons[l.shapeType] ?? "◆") : "QR";
   // تمييز النص عن الشعار بالنسبة: الأسطر النصية عريضة وقصيرة (aspect ≤ 0.5)، الشعار أطول
   const svgIsLogo = l.kind === "svg" && l.aspect > 0.5;
+  const shapeNames: Record<string, string> = { rect: "مستطيل", circle: "دائرة", line: "خط", triangle: "مثلث" };
   const title = l.kind === "text" ? (l.text || "نص فارغ")
     : l.kind === "logo" ? "شعار"
     : l.kind === "svg" ? (svgIsLogo ? "شعار" : (l.text?.trim() || `نص ${textNum}`))
+    : l.kind === "shape" ? (shapeNames[l.shapeType] ?? "شكل")
     : "QR Code";
   const isImg = l.kind === "svg" || l.kind === "logo" || l.kind === "text"; // النص والصور تقبل الدمج
   return (
@@ -2169,6 +2262,84 @@ function LayerRow({ l, num, textNum, sel, faceColors, faceColorHex, enabledFontI
               <input type="range" min={8} max={60} value={l.sizeCm} onChange={e => onUpdate(l.id, { sizeCm: Number(e.target.value) })} style={{ width: "100%", accentColor: GOLD }} />
             </div>
           </>}
+          {l.kind === "shape" && <>
+            {/* اللون */}
+            <div style={{ marginTop: "0.6rem" }}>
+              <div style={{ fontSize: "0.66rem", color: "#ccc", marginBottom: "0.35rem" }}>اللون</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
+                {[...BG_COLORS, { id: "custom_white", hex: "#FFFFFF", label: "أبيض" }, { id: "custom_black", hex: "#111111", label: "أسود" }].map(c => (
+                  <button key={c.id} onClick={() => onUpdate(l.id, { colorHex: c.hex })}
+                    title={c.label}
+                    style={{ width: 24, height: 24, borderRadius: "50%", background: c.hex, border: l.colorHex === c.hex ? `2.5px solid ${GOLD}` : "2px solid rgba(255,255,255,0.15)", cursor: "pointer", flexShrink: 0 }} />
+                ))}
+                <label title="لون مخصص" style={{ width: 24, height: 24, borderRadius: "50%", border: "2px dashed rgba(255,255,255,0.3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.65rem", color: "#aaa", overflow: "hidden" }}>
+                  +
+                  <input type="color" value={l.colorHex} onChange={e => onUpdate(l.id, { colorHex: e.target.value })} style={{ opacity: 0, position: "absolute", width: 1, height: 1 }} />
+                </label>
+              </div>
+            </div>
+            {/* العرض */}
+            <div style={{ marginTop: "0.55rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.66rem", color: "#ccc", marginBottom: "0.25rem" }}><span>العرض</span><span style={{ color: GOLD, fontWeight: 700 }}>{Math.round(l.widthCm)} سم</span></div>
+              <input type="range" min={2} max={300} value={Math.round(l.widthCm)} onChange={e => onUpdate(l.id, { widthCm: Number(e.target.value) })} style={{ width: "100%", accentColor: GOLD }} />
+            </div>
+            {/* الارتفاع (لا ينطبق على الخط) */}
+            {l.shapeType !== "line" && (
+              <div style={{ marginTop: "0.4rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.66rem", color: "#ccc", marginBottom: "0.25rem" }}><span>الارتفاع</span><span style={{ color: GOLD, fontWeight: 700 }}>{Math.round(l.heightCm)} سم</span></div>
+                <input type="range" min={1} max={200} value={Math.round(l.heightCm)} onChange={e => onUpdate(l.id, { heightCm: Number(e.target.value) })} style={{ width: "100%", accentColor: GOLD }} />
+              </div>
+            )}
+            {/* المط الأفقي */}
+            <div style={{ marginTop: "0.4rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.66rem", color: "#ccc", marginBottom: "0.25rem" }}>
+                <span>مط أفقي</span>
+                <span style={{ color: GOLD, fontWeight: 700 }}>{Math.round((l.stretchX ?? 1) * 100)}%</span>
+              </div>
+              <input type="range" min={10} max={400} step={5} value={Math.round((l.stretchX ?? 1) * 100)}
+                onChange={e => onUpdate(l.id, { stretchX: Number(e.target.value) / 100 })} style={{ width: "100%", accentColor: GOLD }} />
+            </div>
+            {/* المط الرأسي (لا ينطبق على الخط) */}
+            {l.shapeType !== "line" && (
+              <div style={{ marginTop: "0.4rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.66rem", color: "#ccc", marginBottom: "0.25rem" }}>
+                  <span>مط رأسي</span>
+                  <span style={{ color: GOLD, fontWeight: 700 }}>{Math.round((l.stretchY ?? 1) * 100)}%</span>
+                </div>
+                <input type="range" min={10} max={400} step={5} value={Math.round((l.stretchY ?? 1) * 100)}
+                  onChange={e => onUpdate(l.id, { stretchY: Number(e.target.value) / 100 })} style={{ width: "100%", accentColor: GOLD }} />
+              </div>
+            )}
+            {((l.stretchX ?? 1) !== 1 || (l.stretchY ?? 1) !== 1) && (
+              <button onClick={() => onUpdate(l.id, { stretchX: 1, stretchY: 1 })}
+                style={{ marginTop: "0.3rem", padding: "0.22rem 0.6rem", borderRadius: 7, fontSize: "0.6rem", fontWeight: 700, fontFamily: "Cairo,sans-serif", border: "1px solid rgba(255,255,255,0.12)", background: "#F4EFE6", color: "#bbb", cursor: "pointer" }}>
+                إعادة المط للوضع الطبيعي
+              </button>
+            )}
+            {/* الزاوية — لكل الأشكال، ومُبرَزة للخط */}
+            <div style={{ marginTop: "0.5rem", ...(l.shapeType === "line" ? { background: "rgba(201,162,75,0.06)", borderRadius: 8, padding: "0.45rem 0.5rem", border: "1px solid rgba(201,162,75,0.2)" } : {}) }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.66rem", color: l.shapeType === "line" ? GOLD : "#ccc", marginBottom: "0.25rem", fontWeight: l.shapeType === "line" ? 800 : 400 }}>
+                <span>{l.shapeType === "line" ? "زاوية الخط" : "الدوران"}</span>
+                <span style={{ color: GOLD, fontWeight: 700 }}>{l.rotation ?? 0}°</span>
+              </div>
+              <input type="range" min={-180} max={180} step={1} value={l.rotation ?? 0}
+                onChange={e => onUpdate(l.id, { rotation: Number(e.target.value) })} style={{ width: "100%", accentColor: GOLD }} />
+              {/* اختصارات سريعة للخط */}
+              {l.shapeType === "line" && (
+                <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
+                  {([["أفقي", 0], ["٤٥°", 45], ["عمودي", 90], ["-٤٥°", -45]] as [string, number][]).map(([lbl, deg]) => (
+                    <button key={deg} onClick={() => onUpdate(l.id, { rotation: deg })}
+                      style={{ flex: 1, minWidth: 40, padding: "0.22rem 0.3rem", borderRadius: 6, fontSize: "0.6rem", fontWeight: 700, fontFamily: "Cairo,sans-serif", cursor: "pointer",
+                        border: `1px solid ${(l.rotation ?? 0) === deg ? GOLD : "rgba(201,162,75,0.25)"}`,
+                        background: (l.rotation ?? 0) === deg ? "rgba(201,162,75,0.15)" : "transparent",
+                        color: (l.rotation ?? 0) === deg ? GOLD : "#888" }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>}
         </div>
       )}
     </div>
@@ -2176,7 +2347,7 @@ function LayerRow({ l, num, textNum, sel, faceColors, faceColorHex, enabledFontI
 }
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
-function computePricing(s: AppState, layers: Layer[], area: { w: number; h: number }) {
+function computePricing(s: AppState, layers: Layer[], area: { w: number; h: number }, sideStylePriceAdd = 0) {
   const lines: { key: string; label: string; sub: string; num?: number; total: number }[] = [];
   // معدّل الخامة حسب المجموعة: النصوص (typeId) أو اللوجوهات/المحتويات (cTypeId)
   const rateText = MAT_RATE(s.typeId), rateContent = MAT_RATE(s.cTypeId);
@@ -2222,7 +2393,10 @@ function computePricing(s: AppState, layers: Layer[], area: { w: number; h: numb
   const borderActive = s.faceBorder && !s.uniMatText && frameEligible && lines.length > 0;
   const FRAME_W = Math.min(10, Math.max(1.5, Math.min(area.w, area.h) * 0.035)); // سمك الإطار متناسب مع حجم اللوحة
   const borderCost = borderActive ? 2 * (area.w + area.h) * FRAME_W * MAT_RATE(s.sideMat) * 0.02 : 0;
-  const lettersRaw = lines.reduce((a, b) => a + b.total, 0) + lighting + borderCost;
+  const lettersBase = lines.reduce((a, b) => a + b.total, 0) + lighting + borderCost;
+  // نمط التخريم: زيادة % على تكلفة الحروف (لا تُطبَّق على الإضاءة أو الخلفية)
+  const sideStyleAdd = (sideStylePriceAdd > 0 && s.sideMat !== "acrylic") ? lettersBase * (sideStylePriceAdd / 100) : 0;
+  const lettersRaw = lettersBase + sideStyleAdd;
   const lettersTotal = lines.length > 0 ? Math.max(lettersRaw, MIN_ORDER) : 0;
   const bgAdd = s.mount === "background" && s.bgMode === "add";
   const bgCost = priceBackground({ add: bgAdd, material: s.bgMaterial, lightboxFace: s.lightboxFace, widthCm: s.bgW, heightCm: s.bgH, depthCm: s.bgD });
@@ -2461,7 +2635,7 @@ function PlanGate({ onFree, onPro }: { onFree: () => void; onPro: () => void }) 
   return (
     <div dir="rtl" style={{
       position: "fixed", inset: 0, zIndex: 9999, overflowY: "auto",
-      background: "linear-gradient(160deg,#241A11 0%,#19120B 100%)",
+      background: "#FDFBF7",
       fontFamily: "Tajawal,Cairo,sans-serif",
     }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
@@ -2476,10 +2650,10 @@ function PlanGate({ onFree, onPro }: { onFree: () => void; onPro: () => void }) 
           textTransform: "uppercase", marginBottom: "0.6rem" }}>
           سوق الدعاية والإعلان — إعلاني
         </div>
-        <h1 style={{ fontSize: "clamp(1.5rem,4vw,2.1rem)", fontWeight: 900, margin: "0 0 0.6rem", color: "#F4ECDD" }}>
+        <h1 style={{ fontSize: "clamp(1.5rem,4vw,2.1rem)", fontWeight: 900, margin: "0 0 0.6rem", color: "#2C1E15" }}>
           أداة تصميم اللوحات الإعلانية
         </h1>
-        <p style={{ fontSize: "0.84rem", color: "#A39584", margin: 0, lineHeight: 1.75 }}>
+        <p style={{ fontSize: "0.84rem", color: "#634E40", margin: 0, lineHeight: 1.75 }}>
           صمّم لوحتك الإعلانية باحتراف — اختر خطتك للبدء
         </p>
       </div>
@@ -2489,86 +2663,89 @@ function PlanGate({ onFree, onPro }: { onFree: () => void; onPro: () => void }) 
         justifyContent: "center", maxWidth: 860, width: "100%" }}>
 
         {/* المجانية */}
-        <div style={{ flex: "1 1 340px", maxWidth: 400, background: "rgba(244,236,221,0.05)",
-          border: "1px solid rgba(154,106,42,0.3)", borderRadius: 20, padding: "1.75rem" }}>
+        <div style={{ flex: "1 1 340px", maxWidth: 400, background: "#2A1F14",
+          border: "1px solid rgba(154,106,42,0.35)", borderRadius: 20, padding: "1.75rem",
+          display: "flex", flexDirection: "column",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
           <div style={{ marginBottom: "1.3rem" }}>
             <div style={{ fontSize: "0.68rem", letterSpacing: "0.1em", color: "#9A6A2A",
               textTransform: "uppercase", marginBottom: "0.3rem" }}>الخطة</div>
             <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#F4ECDD", lineHeight: 1 }}>المجانية</div>
             <div style={{ marginTop: "0.55rem", fontSize: "1.35rem", fontWeight: 900, color: "#C9A24B" }}>مجاناً</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", marginBottom: "1.6rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", flex: 1 }}>
             {FREE_FEAT.map(f => (
-              <div key={f.text} style={{ display: "flex", alignItems: "center", gap: 10, opacity: f.pro ? 0.38 : 1 }}>
+              <div key={f.text} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex",
                   alignItems: "center", justifyContent: "center", fontSize: f.pro ? "0.65rem" : "0.7rem", fontWeight: 900,
-                  background: f.pro ? "rgba(154,106,42,0.08)" : "rgba(46,122,62,0.18)",
-                  border: `1px solid ${f.pro ? "rgba(154,106,42,0.28)" : "rgba(46,122,62,0.45)"}`,
-                  color: f.pro ? "#9A6A2A" : "#4ade80" }}>
+                  background: f.pro ? "rgba(154,106,42,0.1)" : "rgba(46,122,62,0.12)",
+                  border: `1px solid ${f.pro ? "rgba(154,106,42,0.35)" : "rgba(46,122,62,0.35)"}`,
+                  color: f.pro ? "#9A6A2A" : "#2E7A3E" }}>
                   {f.pro ? "🔒" : "✓"}
                 </span>
-                <span style={{ fontSize: "0.81rem", color: f.pro ? "#6B5A4A" : "#DDD0BB" }}>{f.text}</span>
+                <span style={{ fontSize: "0.81rem", color: f.pro ? "#A39584" : "#F4ECDD", fontWeight: f.pro ? 400 : 600 }}>{f.text}</span>
               </div>
             ))}
           </div>
-          <button onClick={onFree}
-            style={{ width: "100%", padding: "0.85rem", borderRadius: 12, cursor: "pointer",
-              fontFamily: "Tajawal,Cairo,sans-serif", fontWeight: 800, fontSize: "0.88rem",
-              border: "1.5px solid rgba(201,162,75,0.45)", background: "transparent", color: "#C9A24B" }}>
-            ابدأ مجاناً ←
-          </button>
+          <div style={{ marginTop: "1.6rem" }}>
+            <div style={{ marginBottom: "0.65rem", textAlign: "center", fontSize: "0.62rem", color: "#A39584", lineHeight: 1.6 }}>
+              بدون تسجيل دخول · مجاناً تماماً
+            </div>
+            <button onClick={onFree}
+              style={{ width: "100%", padding: "0.85rem", borderRadius: 12, cursor: "pointer",
+                fontFamily: "Tajawal,Cairo,sans-serif", fontWeight: 900, fontSize: "0.88rem", border: "none",
+                background: "linear-gradient(135deg,#9A7B36 0%,#E6CA83 50%,#F7E7C4 100%)",
+                color: "#2C1E15", boxShadow: "0 4px 24px rgba(201,162,75,0.35)" }}>
+              ابدأ مجاناً ←
+            </button>
+          </div>
         </div>
 
         {/* الاحترافية */}
         <div style={{ flex: "1 1 340px", maxWidth: 400, position: "relative",
-          background: "linear-gradient(145deg,rgba(201,162,75,0.13),rgba(201,162,75,0.05))",
+          background: "#2A1F14",
           border: "1.5px solid rgba(201,162,75,0.55)", borderRadius: 20, padding: "1.75rem",
-          boxShadow: "0 0 48px rgba(201,162,75,0.13)" }}>
+          boxShadow: "0 8px 40px rgba(201,162,75,0.18)", display: "flex", flexDirection: "column" }}>
           <div style={{ position: "absolute", top: -13, right: 22,
             background: "linear-gradient(135deg,#9A7B36,#E6CA83)", borderRadius: 999,
             padding: "0.22rem 0.9rem", fontSize: "0.63rem", fontWeight: 900, color: "#2C1E15" }}>
             ✦ موصى به
           </div>
           <div style={{ marginBottom: "1.3rem" }}>
-            <div style={{ fontSize: "0.68rem", letterSpacing: "0.1em", color: "#C9A24B",
+            <div style={{ fontSize: "0.68rem", letterSpacing: "0.1em", color: "#9A6A2A",
               textTransform: "uppercase", marginBottom: "0.3rem" }}>الخطة</div>
             <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#F4ECDD", lineHeight: 1 }}>الاحترافية</div>
             <div style={{ marginTop: "0.55rem", display: "flex", alignItems: "baseline", gap: 6 }}>
-              <span style={{ fontSize: "1.35rem", fontWeight: 900,
-                background: "linear-gradient(135deg,#C9A24B,#EBCB7C)",
-                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>٢٩ ر.س</span>
+              <span style={{ fontSize: "1.35rem", fontWeight: 900, color: "#C9A24B" }}>٢٩ ر.س</span>
               <span style={{ fontSize: "0.7rem", color: "#9A6A2A" }}>/ تصميم</span>
             </div>
-            <div style={{ marginTop: "0.4rem", display: "inline-block", fontSize: "0.67rem", color: "#9A6A2A",
-              background: "rgba(154,106,42,0.12)", borderRadius: 8, padding: "0.28rem 0.65rem",
-              border: "1px solid rgba(154,106,42,0.22)", lineHeight: 1.5 }}>
-              تُحسم من فاتورة التنفيذ إذا أكملت الطلب عبر المنصة
-            </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", marginBottom: "1.6rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", flex: 1 }}>
             {PRO_FEAT.map(f => (
               <div key={f} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex",
                   alignItems: "center", justifyContent: "center", fontSize: "0.7rem", fontWeight: 900,
-                  background: "rgba(201,162,75,0.2)", border: "1px solid rgba(201,162,75,0.5)", color: "#C9A24B" }}>✓</span>
-                <span style={{ fontSize: "0.81rem", color: "#DDD0BB" }}>{f}</span>
+                  background: "rgba(201,162,75,0.15)", border: "1px solid rgba(201,162,75,0.45)", color: "#9A6A2A" }}>✓</span>
+                <span style={{ fontSize: "0.81rem", color: "#F4ECDD" }}>{f}</span>
               </div>
             ))}
           </div>
-          <button onClick={onPro}
-            style={{ width: "100%", padding: "0.85rem", borderRadius: 12, cursor: "pointer",
-              fontFamily: "Tajawal,Cairo,sans-serif", fontWeight: 900, fontSize: "0.88rem", border: "none",
-              background: "linear-gradient(135deg,#9A7B36 0%,#E6CA83 50%,#F7E7C4 100%)",
-              color: "#2C1E15", boxShadow: "0 4px 24px rgba(201,162,75,0.28)" }}>
-            سجّل الدخول وابدأ الاحترافية ←
-          </button>
-          <div style={{ marginTop: "0.65rem", textAlign: "center", fontSize: "0.62rem", color: "#6B5A4A", lineHeight: 1.6 }}>
-            يتطلب تسجيل الدخول · الدفع ٢٩ ر.س عبر بوابة آمنة
+          <div style={{ marginTop: "1.6rem" }}>
+            <div style={{ marginBottom: "0.65rem", textAlign: "center", fontSize: "0.62rem", color: "#A39584", lineHeight: 1.6 }}>
+              يتطلب تسجيل الدخول · الدفع ٢٩ ر.س عبر بوابة آمنة
+            </div>
+            <button onClick={onPro}
+              style={{ width: "100%", padding: "0.85rem", borderRadius: 12, cursor: "pointer",
+                fontFamily: "Tajawal,Cairo,sans-serif", fontWeight: 900, fontSize: "0.88rem", border: "none",
+                background: "linear-gradient(135deg,#9A7B36 0%,#E6CA83 50%,#F7E7C4 100%)",
+                color: "#2C1E15", boxShadow: "0 4px 24px rgba(201,162,75,0.35)" }}>
+              سجّل الدخول وابدأ الاحترافية ←
+            </button>
           </div>
         </div>
       </div>
 
-      <div style={{ marginTop: "1.75rem", fontSize: "0.7rem", color: "#5A4A3A", textAlign: "center" }}>
+      <div style={{ marginTop: "1.75rem", fontSize: "0.7rem", color: "#9A8070", textAlign: "center" }}>
         يمكنك الترقية في أي وقت من داخل الأداة
       </div>
       </div>{/* end inner centering div */}
@@ -2588,9 +2765,11 @@ export default function RaisedLettersPage() {
     sideMat: "zincor", faceBorder: false, coloredDesign: false, faceCustomColor: "", sideCustomColor: "",
     cTypeId: "zincor", cSideMat: "zincor", cFaceColorId: "silver", cSideColorId: "silver", cFaceCustomColor: "", cSideCustomColor: "",
     uniMatText: true, uniMatContent: true,
+    sideStyleId: "solid",
     lightTypeId: "none", lightTempId: "warm", bgLightTempId: "warm", night: false,
     contentMode: "design", uploadName: null, letterDepthCm: 5,
     wantInstall: true, installRegion: "jeddah", installHeightM: 3, craneNeeded: false,
+    nationalAddress: "",
     city: "jeddah", streetType: "commercial",
     establishmentType: "store", signType: "parallel", facadeWidthCm: 250, windowHeightCm: 300, signBottomM: 2.4, hasTrademark: false,
     zoom: 1.4, guides: true,
@@ -2602,6 +2781,8 @@ export default function RaisedLettersPage() {
   const [selectedId, setSelId]  = useState<string | null>(null);
   const [showFacadeHelp, setShowFacadeHelp] = useState(false);
   const [showHeightHelp, setShowHeightHelp] = useState(false);
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [signKindPreview, setSignKindPreview] = useState<string | null>(null);
   // الخطوط المفعّلة للعميل (يضبطها المسؤول من لوحة التحكم → site_config مفتاح design_fonts)
   const [enabledFontIds, setEnabledFontIds] = useState<string[]>(DEFAULT_ENABLED_FONT_IDS);
   useEffect(() => {
@@ -2610,7 +2791,61 @@ export default function RaisedLettersPage() {
       .then(d => { if (Array.isArray(d?.value) && d.value.length) setEnabledFontIds(d.value as string[]); })
       .catch(() => {});
   }, []);
+
+  // ── أنماط الجوانب (ديناميكية من DB، fallback ثابتة) ──
+  const [sideStyles, setSideStyles] = useState<SideStyleDef[]>(FALLBACK_SIDE_STYLES);
+  useEffect(() => {
+    fetch("/api/side-styles")
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d?.sideStyles) && d.sideStyles.length) {
+          setSideStyles(d.sideStyles.map((ss: Record<string, unknown>) => ({
+            slug: String(ss.slug ?? ""), nameAr: String(ss.nameAr ?? ""), descriptionAr: String(ss.descriptionAr ?? ""),
+            priceAddPercent: Number(ss.priceAddPercent ?? 0), metalOnly: Boolean(ss.metalOnly ?? true),
+            icon: (FALLBACK_SIDE_STYLES.find(f => f.slug === ss.slug)?.icon ?? "▬"),
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── أنواع الحروف (تركيبات وجه+جوانب ديناميكية من DB) ──
+  type LetterTypeDef = { slug: string; nameAr: string; nameEn: string; tagAr: string; faceMaterial: string; sideMaterial: string; lighting: string; rateMultiplier: number; gradientCss: string; availableColors: string[]; colorful: boolean };
+  const FALLBACK_LETTER_TYPES: LetterTypeDef[] = [
+    { slug: "acrylic-alum",   nameAr: "أكريليك + ألومنيوم", nameEn: "Acrylic + Aluminum", tagAr: "⭐ الأكثر مبيعاً", faceMaterial: "acrylic", sideMaterial: "aluminum", lighting: "front", rateMultiplier: 0.75, gradientCss: "linear-gradient(135deg,#dff0ff,#f0f8ff,#cce4f8)", availableColors: ["white","black","red","blue","green","gold","copper","silver"], colorful: true },
+    { slug: "stainless",      nameAr: "إستانلس ستيل",       nameEn: "Stainless Steel",   tagAr: "فاخر · عاكس",       faceMaterial: "stainless", sideMaterial: "stainless", lighting: "none", rateMultiplier: 2.80, gradientCss: "linear-gradient(135deg,#3a3a3a,#9aa0a6 45%,#e9edf0 60%,#7c7f84)", availableColors: ["gold","silver"], colorful: false },
+    { slug: "acrylic-zincor", nameAr: "أكريليك + زنكور",    nameEn: "Acrylic + Zincor",  tagAr: "جوانب مخصصة",        faceMaterial: "acrylic", sideMaterial: "zincor", lighting: "front", rateMultiplier: 1.10, gradientCss: "linear-gradient(135deg,#ffdada,#fff0f0,#f8cccc)", availableColors: ["white","black","red","blue","green","gold","silver"], colorful: true },
+    { slug: "zincor-full",    nameAr: "زنكور شامل",          nameEn: "Full Zincor",       tagAr: "هالة خلفية",          faceMaterial: "zincor", sideMaterial: "zincor", lighting: "back", rateMultiplier: 1.50, gradientCss: "linear-gradient(135deg,#2a3540,#1c252e)", availableColors: ["white","black","red","blue","green","gold","copper","silver"], colorful: true },
+    { slug: "acrylic-full",   nameAr: "أكريليك شامل",       nameEn: "Full Acrylic",      tagAr: "✨ توهج كامل",        faceMaterial: "acrylic", sideMaterial: "acrylic", lighting: "both", rateMultiplier: 0.75, gradientCss: "linear-gradient(135deg,#ffe0a0,#fff4d0,#ffd060)", availableColors: ["white","black","red","blue","green","gold","copper","silver"], colorful: true },
+  ];
+  const [letterTypes, setLetterTypes] = useState<LetterTypeDef[]>(FALLBACK_LETTER_TYPES);
+  useEffect(() => {
+    fetch("/api/letter-types")
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d?.letterTypes) && d.letterTypes.length) {
+          setLetterTypes(d.letterTypes.map((lt: Record<string, unknown>) => ({
+            slug: String(lt.slug ?? ""), nameAr: String(lt.nameAr ?? ""), nameEn: String(lt.nameEn ?? ""),
+            tagAr: String(lt.tagAr ?? ""), faceMaterial: String(lt.faceMaterial ?? "acrylic"),
+            sideMaterial: String(lt.sideMaterial ?? "aluminum"), lighting: String(lt.lighting ?? "front"),
+            rateMultiplier: Number(lt.rateMultiplier ?? 1), gradientCss: String(lt.gradientCss ?? ""),
+            availableColors: Array.isArray(lt.availableColors) ? lt.availableColors as string[] : [],
+            colorful: Boolean(lt.colorful ?? true),
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // إعادة نمط الجوانب لـ"صماء" عند التحويل لأكريليك أو إيقاف الإضاءة
+  useEffect(() => {
+    if (s.sideMat === "acrylic" || s.lightTypeId === "none") {
+      if (s.sideStyleId !== "solid") set({ sideStyleId: "solid" });
+    }
+  }, [s.sideMat, s.lightTypeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── المعاينة ثلاثية الأبعاد ──
+  const [showMatModal, setShowMatModal] = useState(false);
   const [show3D, setShow3D] = useState(false);
   const [c3d, setC3d] = useState<{ face: HTMLCanvasElement; sil: HTMLCanvasElement } | null>(null);
   const [showMockup, setShowMockup] = useState(false);
@@ -2698,32 +2933,77 @@ export default function RaisedLettersPage() {
   const analysisRef = useRef<SvgAnalysis | null>(null);
   // مجموعة آخر تصميم مستورد — لتعديل العرض الكلي (يتمدد كل العناصر متناسباً)
   const [importGroup, setImportGroup] = useState<{ ids: string[]; centerXcm: number; centerYcm: number; widthCm: number; heightCm: number } | null>(null);
-  const [openSections, setOpenSections] = useState<string[]>(["location", "dims"]);
+  const [openSections, setOpenSections] = useState<string[]>([]);
   const [visitedSections, setVisitedSections] = useState<string[]>([]);
   const [ignoredRules, setIgnoredRules] = useState<string[]>([]);
+  const [supTemplate, setSupTemplate] = useState<1 | 2>(1); // 1=نص فوق نص | 2=نصان جانبيان
+  const [supContactType, setSupContactType] = useState<"هاتف" | "جوال">("جوال");
   const [confirmedSections, setConfirmedSections] = useState<string[]>([]);
 
   // ── خطة الاستخدام (مجانية / احترافية) ───────────────────────────────────
   const [plan, setPlan] = useState<"free" | "pro" | null>(null);
   const [planMounted, setPlanMounted] = useState(false);
   useEffect(() => {
-    const stored = sessionStorage.getItem("e3lani_plan") as "free" | "pro" | null;
+    const stored = localStorage.getItem("e3lani_plan") as "free" | "pro" | null;
     setPlan(stored ?? null);
     setPlanMounted(true);
   }, []);
   const choosePlan = (p: "free" | "pro") => {
-    sessionStorage.setItem("e3lani_plan", p);
-    if (p === "pro") sessionStorage.setItem("e3lani_revisions", "3");
+    localStorage.setItem("e3lani_plan", p);
+    if (p === "pro") localStorage.setItem("e3lani_revisions", "3");
     setPlan(p);
     if (p === "pro") setRevisions(3);
   };
   const isPro = () => plan === "pro";
 
+  // ── حفظ المشاريع (للخطة المدفوعة فقط) ───────────────────────────────────
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<number | null>(null);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveProjectName, setSaveProjectName] = useState("");
+
+  // تحميل مشروع من URL عند الفتح
+  useEffect(() => {
+    const pid = new URLSearchParams(window.location.search).get("project");
+    if (!pid) return;
+    try {
+      const all = JSON.parse(localStorage.getItem("e3lani_projects") || "[]") as SavedProject[];
+      const found = all.find(p => p.id === pid);
+      if (!found) return;
+      setS(found.state);
+      setLayers(found.layers);
+      setCurrentProjectId(found.id);
+      setSaveProjectName(found.name);
+      setLastSaved(found.savedAt);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function doSaveProject(name: string) {
+    const id = currentProjectId || ("proj_" + Date.now().toString(36));
+    const now = Date.now();
+    const project: SavedProject = { id, name, type: "raised-letters", state: s, layers, savedAt: now };
+    try {
+      const all: SavedProject[] = JSON.parse(localStorage.getItem("e3lani_projects") || "[]");
+      const idx = all.findIndex(p => p.id === id);
+      if (idx >= 0) all[idx] = project; else all.unshift(project);
+      localStorage.setItem("e3lani_projects", JSON.stringify(all));
+      setCurrentProjectId(id);
+      setSaveProjectName(name);
+      setLastSaved(now);
+      // تحديث URL بمعرّف المشروع بدون إعادة تحميل الصفحة
+      const url = new URL(window.location.href);
+      url.searchParams.set("project", id);
+      window.history.replaceState({}, "", url.toString());
+    } catch { flash("تعذّر حفظ المشروع — تحقق من مساحة المتصفح."); }
+    setSaveModalOpen(false);
+  }
+
   // عداد التعديلات (٣ لكل تصميم مدفوع)
   const [revisions, setRevisions] = useState<number>(3);
   useEffect(() => {
     if (plan === "pro") {
-      const stored = parseInt(sessionStorage.getItem("e3lani_revisions") ?? "3", 10);
+      const stored = parseInt(localStorage.getItem("e3lani_revisions") ?? "3", 10);
       setRevisions(isNaN(stored) ? 3 : stored);
     }
   }, [plan]);
@@ -2764,18 +3044,29 @@ export default function RaisedLettersPage() {
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
 
-  const addText = () => { const id = uid(); setLayers(p => [...p, { kind: "text", id, text: "نص جديد", lang: "ar", fontId: "cairo", heightCm: 35, colorId: s.faceColorId, x: 50, y: 70, stretchX: 1, stretchY: 1 }]); setSelId(id); };
-  const addLogo = (src: string) => { const id = uid(); setLayers(p => [...p, { kind: "logo", id, src, widthCm: 40, x: 50, y: 30 }]); setSelId(id); };
-  const addQR   = () => { const id = uid(); setLayers(p => [...p, { kind: "qr", id, value: "https://e3lani.com", sizeCm: 20, x: 78, y: 72 }]); setSelId(id); };
+  const addText  = () => { const id = uid(); setLayers(p => [...p, { kind: "text", id, text: "نص جديد", lang: "ar", fontId: "cairo", heightCm: 35, colorId: s.faceColorId, x: 50, y: 70, stretchX: 1, stretchY: 1 }]); setSelId(id); };
+  const addLogo  = (src: string) => { const id = uid(); setLayers(p => [...p, { kind: "logo", id, src, widthCm: 40, x: 50, y: 30 }]); setSelId(id); };
+  const addQR    = () => { const id = uid(); setLayers(p => [...p, { kind: "qr", id, value: "https://e3lani.com", sizeCm: 20, x: 78, y: 72 }]); setSelId(id); };
+  const addShape = (shapeType: ShapeLayer["shapeType"]) => {
+    const id = uid();
+    const defaults: Record<ShapeLayer["shapeType"], { widthCm: number; heightCm: number }> = {
+      rect:     { widthCm: 60, heightCm: 15 },
+      circle:   { widthCm: 25, heightCm: 25 },
+      line:     { widthCm: 80, heightCm: 1  },
+      triangle: { widthCm: 30, heightCm: 20 },
+    };
+    setLayers(p => [...p, { kind: "shape", id, shapeType, colorHex: "#C9A24B", x: 50, y: 50, ...defaults[shapeType] }]);
+    setSelId(id);
+  };
   // إضافة محتوى من قائمة المحتويات المطلوبة (إجباري/اختياري)
   const addContentItem = (key: ContentReq["key"]) => {
     if (key === "qr")   return addQR();
     if (key === "logo") return logoRef2.current?.click();
     const id = uid();
     const presets: Record<string, { text: string; lang: string; fontId: string }> = {
-      arname: { text: "اسم المنشأة", lang: "ar", fontId: "cairo" },
-      enname: { text: "Brand Name", lang: "en", fontId: "montserrat" },
-      phone:  { text: "0500000000", lang: "en", fontId: "cairo" },
+      arname: { text: "اسم المنشأة", lang: "ar", fontId: s.establishmentType === "supermarket" ? "sukar" : "cairo" },
+      enname: { text: "Brand Name", lang: "en", fontId: s.establishmentType === "supermarket" ? "sukar" : "montserrat" },
+      phone:  { text: "0500000000", lang: "ar", fontId: "cairo" },
     };
     const pr = presets[key] || presets.arname;
     setLayers(p => [...p, { kind: "text", id, text: pr.text, lang: pr.lang, fontId: pr.fontId, heightCm: 30, colorId: s.faceColorId, x: 50, y: 50, stretchX: 1, stretchY: 1 }]);
@@ -3425,6 +3716,46 @@ export default function RaisedLettersPage() {
 
   const moveLayer = useCallback((id: string, x: number, y: number) => setLayers(p => p.map(l => l.id === id ? { ...l, x, y } : l)), []);
 
+  // ── تطبيق نموذج لوحة التموينات (1=نص فوق نص | 2=نصان جانبيان) ──
+  // cairo بدلاً من sukar: خط Cairo يدعم الأرقام العربية الهندية (U+0660-U+0669) بشكل صحيح
+  const stripLayer = () => ({ kind: "text" as const, id: uid(), text: "هاتف ٠٠٠٠٠٠٠٠٠٠  |  سجل تجاري ٠٠٠٠٠٠٠", lang: "ar", fontId: "cairo", heightCm: 7, colorId: "white", x: 82, y: 92.5, stretchX: 1, stretchY: 1 });
+  // bgW/bgH اختياريان — يُمرَّران صراحةً من onChange لتجاوز مشكلة stale closure
+  const applySupTemplate = (t: 1 | 2, bgW = s.bgW, bgH = s.bgH) => {
+    setSupTemplate(t);
+    // موضع الشعار: يبدأ 12 سم من الحافة اليسرى، متوسط رأسياً في المنطقة الخضراء الداكنة
+    // نسبة العرض/الارتفاع للشعار ≈ 1.43 (مستخرجة من SVG) → widthCm = 30/0.7 ≈ 43 لارتفاع 30 سم
+    const logoW = 43; // عرض الشعار بالسم (يعطي ارتفاعاً ≈ 30 سم)
+    const logoX = Math.round(((12 + logoW / 2) / bgW) * 1000) / 10;
+    const greenH = bgH - SUPERMARKET_STRIP_CM;
+    const logoY = Math.round((greenH / 2 / bgH) * 1000) / 10;
+    if (t === 1) {
+      // نموذج 1: اسم عربي 18 سم فوق + اسم إنجليزي 16 سم تحته — بجانب الشعار
+      const greenH1   = bgH - SUPERMARKET_STRIP_CM;
+      const blockH1   = 18 + 3 + 16; // 37 سم
+      const blockStart1 = (greenH1 - blockH1) / 2;
+      const arY1  = Math.round(((blockStart1 + 9)           / bgH) * 1000) / 10;
+      const enY1  = Math.round(((blockStart1 + 18 + 3 + 8)  / bgH) * 1000) / 10;
+      // مركز المساحة النصية أفقياً: من حافة الشعار اليمنى (12+logoW) حتى حافة اللوحة
+      const logoRightEdge1 = 12 + logoW;
+      const textX1 = Math.round(((logoRightEdge1 + bgW) / 2 / bgW) * 1000) / 10;
+      setLayers([
+        { kind: "logo" as const, id: uid(), src: SUPERMARKET_CART_SRC, widthCm: logoW, x: logoX, y: logoY, stretchX: 1, stretchY: 1 },
+        { kind: "text" as const, id: uid(), text: "اسم المنشأة", lang: "ar", fontId: "sukar", heightCm: 18, colorId: "white", x: textX1, y: arY1, stretchX: 1, stretchY: 1 },
+        { kind: "text" as const, id: uid(), text: "Brand Name", lang: "en", fontId: "sukar", heightCm: 16, colorId: "white", x: textX1, y: enY1, stretchX: 1, stretchY: 1 },
+        stripLayer(),
+      ]);
+    } else {
+      // نموذج 2: الاسم العربي على اليمين والإنجليزي على اليسار
+      setLayers([
+        { kind: "logo" as const, id: uid(), src: SUPERMARKET_CART_SRC, widthCm: logoW, x: logoX, y: logoY, stretchX: 1, stretchY: 1 },
+        { kind: "text" as const, id: uid(), text: "اسم المنشأة", lang: "ar", fontId: "sukar", heightCm: 30, colorId: "white", x: 73, y: logoY, stretchX: 1, stretchY: 1 },
+        { kind: "text" as const, id: uid(), text: "Brand Name", lang: "en", fontId: "sukar", heightCm: 16, colorId: "white", x: 45, y: logoY, stretchX: 1, stretchY: 1 },
+        stripLayer(),
+      ]);
+    }
+    setSelId(null);
+  };
+
   const readFile = (e: React.ChangeEvent<HTMLInputElement>, cb: (src: string, name: string) => void) => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader(); r.onload = ev => { if (ev.target?.result) cb(ev.target.result as string, f.name); }; r.readAsDataURL(f); e.target.value = "";
@@ -3433,7 +3764,107 @@ export default function RaisedLettersPage() {
   const [mounted2, setMounted2] = useState(false);
   useEffect(() => setMounted2(true), []);
   useEffect(() => { document.title = "لوحات المتاجر — سوق الدعاية والإعلان"; }, []);
-  const p = computePricing(s, layers, area);
+
+  // ── إرساء نص شريط التموينات على بُعد 12 سم من الحافة اليمنى عند تغيير عرض اللوحة ──
+  useEffect(() => {
+    if (s.establishmentType !== "supermarket") return;
+    const stripTopPct = ((s.bgH - SUPERMARKET_STRIP_CM) / s.bgH) * 100;
+    setLayers(prev => {
+      let changed = false;
+      const next = prev.map(l => {
+        if (l.kind !== "text" || l.y < stripTopPct) return l;
+        const f = FONT_BY_ID[l.fontId] || FONT_BY_ID["cairo"];
+        const textWidthCm = measureTextCm(l.text || "أ", f.family, l.heightCm) * (l.stretchX ?? 1);
+        // يمين اللوحة - 12 سم = الحافة اليمنى للنص؛ المركز = حافة يمنى - نصف العرض
+        const centerCm = s.bgW - 12 - textWidthCm / 2;
+        const newX = Math.max(0, Math.min(100, (centerCm / s.bgW) * 100));
+        if (Math.abs(newX - l.x) < 0.5) return l;
+        changed = true;
+        return { ...l, x: newX };
+      });
+      return changed ? next : prev;
+    });
+  }, [s.bgW, s.bgH, s.establishmentType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── توسيط المحتوى الرئيسي رأسياً في المنطقة الخضراء عند تغيير ارتفاع اللوحة ──
+  useEffect(() => {
+    if (s.establishmentType !== "supermarket") return;
+    const greenH = s.bgH - SUPERMARKET_STRIP_CM;         // ارتفاع المنطقة الخضراء الداكنة
+    const greenCenterY = (greenH / 2 / s.bgH) * 100;    // % مركز المنطقة الخضراء
+    const stripTopPct  = (greenH / s.bgH) * 100;         // % بداية الشريط
+
+    setLayers(prev => {
+      let changed = false;
+      // اجمع أبعاد النصوص غير الشريط لمعرفة حجم الكتلة النصية (نموذج 1)
+      const mainTexts = prev.filter(l => l.kind === "text" && l.y < stripTopPct) as (typeof prev[0] & { kind: "text" })[];
+      const arLayer   = mainTexts.find(l => l.lang === "ar");
+      const enLayer   = mainTexts.find(l => l.lang === "en");
+      const arH = arLayer?.heightCm ?? 18;
+      const enH = enLayer?.heightCm ?? 16;
+      const GAP = 3; // فراغ بين النصين (سم)
+
+      // حساب مركز المساحة النصية أفقياً (من حافة الشعار حتى حافة اللوحة)
+      const logoLayer     = prev.find(l => l.kind === "logo");
+      const logoW_        = logoLayer?.kind === "logo" ? logoLayer.widthCm : 43;
+      const logoRightEdge = 12 + logoW_;
+      const textCenterX   = Math.round(((logoRightEdge + s.bgW) / 2 / s.bgW) * 1000) / 10;
+
+      const next = prev.map(l => {
+        // تجاهل طبقات الشريط
+        if (l.y >= stripTopPct) return l;
+
+        let newY: number;
+        let newX: number | undefined;
+
+        if (l.kind === "logo") {
+          // الشعار: توسيط رأسي فقط (x يُدار بـ useEffect الشريط)
+          newY = greenCenterY;
+        } else if (supTemplate === 2 && l.kind === "text") {
+          // نموذج 2: كل النصوص تتوسط رأسياً وأفقياً في مناطقها (المستخدم يضبطها يدوياً)
+          newY = greenCenterY;
+        } else if (l.kind === "text" && l.lang === "ar") {
+          // نموذج 1 — العربي: أعلى الكتلة + توسيط أفقي
+          const blockH     = arH + GAP + enH;
+          const blockStart = (greenH - blockH) / 2;
+          newY = ((blockStart + arH / 2) / s.bgH) * 100;
+          newX = textCenterX;
+        } else if (l.kind === "text" && l.lang === "en") {
+          // نموذج 1 — الإنجليزي: أسفل الكتلة + توسيط أفقي
+          const blockH     = arH + GAP + enH;
+          const blockStart = (greenH - blockH) / 2;
+          newY = ((blockStart + arH + GAP + enH / 2) / s.bgH) * 100;
+          newX = textCenterX;
+        } else {
+          return l;
+        }
+
+        newY = Math.round(newY * 10) / 10;
+        const yChanged = Math.abs(newY - l.y) >= 0.3;
+        const xChanged = newX !== undefined && Math.abs(newX - l.x) >= 0.3;
+        if (!yChanged && !xChanged) return l;
+        changed = true;
+        return { ...l, y: newY, ...(newX !== undefined ? { x: newX } : {}) };
+      });
+      return changed ? next : prev;
+    });
+  }, [s.bgH, s.bgW, s.establishmentType, supTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── إصلاح شريط التموينات المحمّل من localStorage القديم ──
+  // يحوّل الأرقام الغربية → عربية-هندية ويغيّر الخط إلى Cairo (يدعم U+0660-U+0669)
+  useEffect(() => {
+    if (s.establishmentType !== "supermarket") return;
+    const supStripTopPct = ((s.bgH - SUPERMARKET_STRIP_CM) / s.bgH) * 100;
+    const stripL = layers.find(l => l.kind === "text" && l.y >= supStripTopPct);
+    if (!stripL || stripL.kind !== "text") return;
+    const needsDigitFix = /\d/.test(stripL.text);
+    const needsFontFix  = stripL.fontId === "sukar";
+    if (!needsDigitFix && !needsFontFix) return;
+    const arabicText = needsDigitFix ? stripL.text.replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]) : stripL.text;
+    setLayers(prev => prev.map(l => l.id === stripL.id ? { ...l, text: arabicText, fontId: "cairo" } : l));
+  }, [layers, s.establishmentType, s.bgH]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeSideStyle = sideStyles.find(ss => ss.slug === s.sideStyleId);
+  const p = computePricing(s, layers, area, activeSideStyle?.priceAddPercent ?? 0);
   // فحص الامتثال لاشتراطات الأمانة
   const allWarns = complianceWarnings(s, layers);
   const activeWarns = allWarns.filter(w => !ignoredRules.includes(w.id));
@@ -3495,32 +3926,41 @@ export default function RaisedLettersPage() {
               <span>›</span><span>المنتجات</span><span>›</span>
               <span style={{ color: "#2C1E15" }}>لوحات المتاجر</span>
             </div>
-            <h1 style={{ fontSize: "clamp(1.1rem,2vw,1.5rem)", fontWeight: 900, margin: 0, color: "#2C1E15" }}>
+            <h1 style={{ fontSize: "clamp(1.1rem,2vw,1.5rem)", fontWeight: 900, margin: "0 0 0.6rem 0", color: "#2C1E15" }}>
               لوحات المتاجر <span style={GT}>— صمّم لافتتك</span>
             </h1>
+            {/* زر تغيير الخطة — تحت العنوان مباشرة */}
+            {planMounted && plan && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => { localStorage.removeItem("e3lani_plan"); localStorage.removeItem("e3lani_revisions"); setPlan(null); }}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                    padding: "0.55rem 1.2rem", borderRadius: 999, cursor: "pointer",
+                    fontFamily: "Tajawal,Cairo,sans-serif", fontSize: "0.82rem", fontWeight: 800,
+                    border: `1.5px solid ${isPro() ? "rgba(154,106,42,0.6)" : "rgba(154,106,42,0.35)"}`,
+                    background: isPro() ? "linear-gradient(135deg,#9A7B36,#E6CA83)" : "#FFF8EC",
+                    color: isPro() ? "#2C1E15" : "#7A5520",
+                    boxShadow: isPro() ? "0 3px 12px rgba(154,106,42,0.3)" : "0 2px 8px rgba(154,106,42,0.15)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <span style={{ fontSize: "1rem" }}>{isPro() ? "✦" : "🔓"}</span>
+                  <span>الخطة الحالية: <strong>{isPro() ? "احترافية" : "مجانية"}</strong></span>
+                  <span style={{ opacity: 0.55, fontSize: "0.72rem", borderRight: "1px solid currentColor", paddingRight: 8, marginRight: 2 }}>|</span>
+                  <span style={{ fontSize: "0.76rem", textDecoration: "underline", textUnderlineOffset: 3 }}>تغيير الخطة</span>
+                </button>
+                {isPro() && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0.5rem 0.9rem",
+                    borderRadius: 999, background: "rgba(154,106,42,0.1)", border: "1px solid rgba(154,106,42,0.25)" }}>
+                    <span style={{ fontSize: "0.72rem", color: "#7A5520", fontWeight: 600 }}>التعديلات المتبقية:</span>
+                    <span style={{ fontSize: "0.9rem", fontWeight: 900,
+                      color: revisions > 0 ? "#C9A24B" : "#E51C1C" }}>{revisions}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {/* badge الخطة + تبديل */}
-          {planMounted && plan && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {isPro() && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0.35rem 0.75rem",
-                  borderRadius: 999, background: "rgba(154,106,42,0.12)", border: "1px solid rgba(154,106,42,0.25)" }}>
-                  <span style={{ fontSize: "0.68rem", color: "#9A6A2A", fontWeight: 700 }}>تعديلات متبقية:</span>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 900,
-                    color: revisions > 0 ? "#C9A24B" : "#E51C1C" }}>{revisions}</span>
-                </div>
-              )}
-              <button onClick={() => { sessionStorage.removeItem("e3lani_plan"); sessionStorage.removeItem("e3lani_revisions"); setPlan(null); }}
-                title="انقر لتغيير الخطة"
-                style={{ display: "flex", alignItems: "center", gap: 7, padding: "0.4rem 0.9rem", borderRadius: 999, cursor: "pointer",
-                  fontFamily: "Tajawal,Cairo,sans-serif", fontSize: "0.72rem", fontWeight: 800, border: "none",
-                  background: isPro() ? "linear-gradient(135deg,#9A7B36,#E6CA83)" : "rgba(154,106,42,0.15)",
-                  color: isPro() ? "#2C1E15" : "#9A6A2A" }}>
-                {isPro() ? "✦ احترافية" : "مجانية"}
-                <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>· تغيير</span>
-              </button>
-            </div>
-          )}
           {/* ── شريط الأوضاع — بالمنتصف ── */}
           <div style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: "0.4rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, padding: 5, borderRadius: 999, background: "#F2E8D0", border: "1px solid rgba(154,106,42,0.3)", boxShadow: "0 8px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)" }}>
@@ -3536,6 +3976,7 @@ export default function RaisedLettersPage() {
                       boxShadow: onDesign ? "0 4px 18px rgba(201,162,75,0.35)" : "none" }}>
                     <span>✏️</span>صمّم بنفسك
                   </button>
+                  {isPro() && <>
                   <span style={{ width: 1, height: 22, background: "rgba(154,106,42,0.25)", margin: "0 4px" }} />
                   <button title={`الصيغ المدعومة: AI · PDF · EPS · SVG · PSD · PNG · JPG — حتى ${MAX_UPLOAD_MB} ميجابايت`}
                     onClick={() => {
@@ -3553,16 +3994,12 @@ export default function RaisedLettersPage() {
                       boxShadow: onUpload ? "0 4px 18px rgba(201,162,75,0.35)" : "none", whiteSpace: "nowrap" }}>
                     📤 ارفع تصميمك
                   </button>
-                  <button onClick={() => setImport(true)}
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "0.5rem 1.4rem", borderRadius: 999, cursor: "pointer",
-                      fontFamily: "Cairo,sans-serif", fontSize: "0.8rem", fontWeight: 700, transition: "all 0.25s",
-                      border: "1px dashed rgba(201,162,75,0.45)", background: "rgba(201,162,75,0.06)", color: GOLD, whiteSpace: "nowrap" }}>
-                    📂 تصاميمي المحفوظة
-                  </button>
+                  </>}
                 </>;
               })()}
             </div>
           </div>
+
         </div>
       </div>
 
@@ -3576,7 +4013,12 @@ export default function RaisedLettersPage() {
               <div style={{ fontSize: "0.88rem", fontWeight: 900, color: "#2C1E15" }}>ملخص الطلب</div>
             </div>
             <div style={{ padding: "0.5rem 1rem" }}>
-              {(() => {
+              {!confirmed("location") ? (
+                <div style={{ padding: "1.2rem 0.5rem", textAlign: "center", color: "#A39584", fontSize: "0.75rem", lineHeight: 1.7 }}>
+                  <div style={{ fontSize: "1.4rem", marginBottom: "0.4rem" }}>📋</div>
+                  أكمل الخطوات من القائمة الجانبية<br />لتظهر هنا تفاصيل طلبك
+                </div>
+              ) : (() => {
                 const faceHex = s.faceCustomColor || (COL[s.faceColorId]?.hex || "#999");
                 const sideHex = s.sideCustomColor || (COL[s.sideColorId]?.hex || "#999");
                 const cFaceHex = s.cFaceCustomColor || (COL[s.cFaceColorId]?.hex || "#999");
@@ -3599,6 +4041,7 @@ export default function RaisedLettersPage() {
                         ["خامة وجه اللوجوهات", cFaceType.label, cFaceHex],
                         ["خامة جوانب اللوجوهات", cSideType.label, cSideHex],
                       ] as [string, string, string][]) : []),
+                  ...(activeSideStyle && activeSideStyle.slug !== "solid" && s.sideMat !== "acrylic" && s.lightTypeId !== "none" ? [["نمط الجوانب", activeSideStyle.nameAr]] as [string, string][] : []),
                   ["الإضاءة",  LIGHT_TYPES.find(l => l.id === s.lightTypeId)?.label || "بدون"],
                   ["التركيب",  s.wantInstall ? "نعم" : "لا"],
                 ] as [string, string, string?][]).map(([label, value, color], i) => (
@@ -3665,14 +4108,14 @@ export default function RaisedLettersPage() {
 
         {/* ─── CENTER (area c): الكانفاس ─── */}
         <div style={{ gridArea: "c" }}>
-          {/* ── شريط مراجعة الامتثال لاشتراطات الأمانة ── */}
-          {activeWarns.length === 0 ? (
+          {/* ── شريط مراجعة الامتثال لاشتراطات الأمانة — يظهر فقط بعد اعتماد المرحلة الأولى ── */}
+          {confirmed("location") && activeWarns.length === 0 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.6rem", padding: "0.6rem 0.9rem", borderRadius: 12, background: "rgba(61,139,78,0.1)", border: "1px solid rgba(61,139,78,0.35)" }}>
               <span style={{ fontSize: "1rem" }}>✅</span>
               <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#2E7A3E" }}>متوافق مع اشتراطات {rulesLabel}</span>
               {ignoredWarns.length > 0 && <span style={{ marginInlineStart: "auto", fontSize: "0.66rem", color: "#9A6A2A" }}>تجاهلت {ignoredWarns.length} اشتراطاً</span>}
             </div>
-          ) : (
+          ) : confirmed("location") ? (
             <div style={{ marginBottom: "0.6rem", borderRadius: 12, background: "rgba(201,140,40,0.1)", border: "1px solid rgba(201,140,40,0.45)", overflow: "hidden" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.55rem 0.9rem", background: "rgba(201,140,40,0.12)" }}>
                 <span style={{ fontSize: "1rem" }}>⚠️</span>
@@ -3705,7 +4148,7 @@ export default function RaisedLettersPage() {
                 </div>
               )}
             </div>
-          )}
+          ) : null}
           <div style={{ background: "#201B16", borderRadius: 14, border: "1px solid rgba(201,162,75,0.18)", padding: "0.85rem 1rem 1rem" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.7rem", flexWrap: "wrap", gap: "0.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.68rem", color: "#aaa" }}>
@@ -3758,9 +4201,40 @@ export default function RaisedLettersPage() {
                 materialLabel={matLabel}
                 faceBorder={s.faceBorder && !s.uniMatText && frameEligible} frameColor={s.sideCustomColor || (COL[s.sideColorId] || COL["silver"]).hex}
                 mergeSel={mergeSel} mergeMode={mergeMode} onSetMergeMode={setMergeModeWrap}
-                onToggleMerge={toggleMerge} onMerge={mergeLayers} onSplit={splitLayer} />
+                onToggleMerge={toggleMerge} onMerge={mergeLayers} onSplit={splitLayer}
+                supStrip={s.establishmentType === "supermarket" ? (SUPERMARKET_STRIP_CM / s.bgH) * 100 : undefined} />
             </div>
           </div>
+
+          {/* ── حفظ المشروع ومشاريعي — أسفل منطقة الرسم (للخطة المدفوعة) ── */}
+          {planMounted && isPro() && (
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: "0.5rem" }}>
+              <button
+                onClick={() => { setSaveProjectName(n => n || "مشروعي الجديد"); setSaveModalOpen(true); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "0.5rem 1.2rem",
+                  borderRadius: 999, cursor: "pointer", fontFamily: "Tajawal,Cairo,sans-serif",
+                  fontSize: "0.82rem", fontWeight: 800,
+                  border: "1.5px solid rgba(154,106,42,0.5)",
+                  background: "linear-gradient(135deg,#9A7B36,#E6CA83)",
+                  color: "#2C1E15", boxShadow: "0 3px 12px rgba(154,106,42,0.25)" }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                </svg>
+                {lastSaved ? "حفظ التحديثات" : "حفظ المشروع"}
+                {lastSaved && <span style={{ fontSize: "0.62rem", opacity: 0.7 }}>· {new Date(lastSaved).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</span>}
+              </button>
+              <Link href={`/${locale}/projects`}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0.5rem 1rem",
+                  borderRadius: 999, textDecoration: "none", fontSize: "0.8rem", fontWeight: 700,
+                  color: "#7A5520", border: "1px solid rgba(154,106,42,0.3)", background: "rgba(154,106,42,0.07)" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                مشاريعي
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* ─── RIGHT (area r): تخصيص اللوحة — خطوات 1·2·3 ─── */}
@@ -3775,11 +4249,6 @@ export default function RaisedLettersPage() {
                 <div style={{ marginTop: "0.5rem" }}>
                   <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>المدينة</div>
                   <CitySelect value={s.city} onChange={v => { set({ city: v }); setVisitedSections(p => p.includes("location") ? p : [...p, "location"]); }} />
-
-                  <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, margin: "0.85rem 0 0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>حدّد الموقع على الخريطة</div>
-                  <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(154,106,42,0.3)" }}>
-                    <iframe title="map" src={osmEmbed(c.lat, c.lng)} style={{ width: "100%", height: 160, border: "none", display: "block" }} loading="lazy" />
-                  </div>
 
                   <div style={{ marginTop: "0.7rem", padding: "0.7rem 0.85rem", borderRadius: 10, background: "rgba(61,139,78,0.1)", border: "1px solid rgba(61,139,78,0.3)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3798,11 +4267,15 @@ export default function RaisedLettersPage() {
                   <Choice value={s.establishmentType} cols={2}
                     onChange={v => {
                       const allowed = estById(v).kinds;
-                      set({ establishmentType: v, signType: allowed.includes(s.signType) ? s.signType : "parallel" });
+                      set({ establishmentType: v, signType: allowed.includes(s.signType) ? s.signType : allowed[0] });
                       if (v === "supermarket") {
-                        // الهوية القياسية للتموينات: خلفية خضراء معتمدة + نص أبيض افتراضياً
-                        set({ mount: "background", bgMode: "add", bgMaterial: "cladding", bgColorId: "", bgCustomColor: SUPERMARKET_GREEN });
-                        setLayers(prev => prev.map(l => l.kind === "text" ? { ...l, colorId: "white", colorHex: undefined, fontId: "sukar" } : l));
+                        // الهوية القياسية للتموينات: خلفية خضراء + مقاس أدنى قياسي (300×80 سم) + نصوص بيضاء + قالب افتراضي
+                        set({ mount: "background", bgMode: "add", bgMaterial: "cladding", bgColorId: "", bgCustomColor: SUPERMARKET_GREEN, bgW: 300, bgH: 80, faceCustomColor: "#FFFFFF", faceColorId: "" });
+                        applySupTemplate(1, 300, 80); // أبعاد التموينات القياسية — تجاوز stale closure
+                      } else if (s.establishmentType === "supermarket") {
+                        // العودة من التموينات: مسح الضبط الإجباري (الخلفية الخضراء والخط الموحّد ولون النصوص)
+                        set({ bgCustomColor: "", bgColorId: "white", bgMode: "none", faceCustomColor: "", faceColorId: "silver" });
+                        setLayers(prev => prev.map(l => l.kind === "text" ? { ...l, colorId: "gold", fontId: "cairo" } : l));
                       }
                     }}
                     options={ESTABLISHMENTS.map(e => ({ v: e.id, label: e.label }))} />
@@ -3827,13 +4300,133 @@ export default function RaisedLettersPage() {
                           ? "يمكن استخدام تصميم العلامة المسجلة (ألوان وخط حر) ضمن الأبعاد المسموحة."
                           : "بدون علامة مسجلة: يلزم اللون الأخضر الموحّد + خط سُكَّر + الشعار الموحّد."}
                       </div>
+
+                      {/* ── اختيار نموذج اللوحة (التصميم الموحّد فقط) ── */}
+                      {!s.hasTrademark && (
+                        <div style={{ marginTop: "0.7rem" }}>
+                          <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>نموذج اللوحة</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                            {([
+                              {
+                                t: 1 as const,
+                                label: "نص فوق نص",
+                                desc: "اسم عربي كبير + اسم إنجليزي أسفله",
+                                thumb: (
+                                  <svg viewBox="0 0 80 30" width="100%" style={{ display: "block" }}>
+                                    <rect width="80" height="30" fill="#006B54" rx="2"/>
+                                    {/* logo */}
+                                    <circle cx="10" cy="13" r="6" fill="#F5CE22" opacity="0.9"/>
+                                    {/* Arabic text bar */}
+                                    <rect x="20" y="5" width="55" height="9" fill="white" opacity="0.9" rx="1.5"/>
+                                    {/* English text bar */}
+                                    <rect x="20" y="17" width="40" height="5" fill="white" opacity="0.7" rx="1"/>
+                                    {/* strip */}
+                                    <rect x="0" y="25.5" width="80" height="4.5" fill="#3DB16B" rx="0 0 2 2"/>
+                                  </svg>
+                                ),
+                              },
+                              {
+                                t: 2 as const,
+                                label: "نصان جانبيان",
+                                desc: "عربي على اليمين / إنجليزي على اليسار",
+                                thumb: (
+                                  <svg viewBox="0 0 80 30" width="100%" style={{ display: "block" }}>
+                                    <rect width="80" height="30" fill="#006B54" rx="2"/>
+                                    {/* small logo */}
+                                    <circle cx="7" cy="13" r="4" fill="#F5CE22" opacity="0.9"/>
+                                    {/* Arabic — right half */}
+                                    <rect x="45" y="6" width="31" height="15" fill="white" opacity="0.9" rx="1.5"/>
+                                    {/* English — left-center */}
+                                    <rect x="14" y="8" width="28" height="10" fill="white" opacity="0.7" rx="1"/>
+                                    {/* strip */}
+                                    <rect x="0" y="25.5" width="80" height="4.5" fill="#3DB16B" rx="0 0 2 2"/>
+                                  </svg>
+                                ),
+                              },
+                            ] as const).map(({ t, label, desc, thumb }) => {
+                              const on = supTemplate === t;
+                              return (
+                                <button key={t} onClick={() => applySupTemplate(t)}
+                                  style={{ padding: "0.4rem", borderRadius: 10, cursor: "pointer", fontFamily: "Cairo,sans-serif", textAlign: "center",
+                                    border: `2px solid ${on ? "#006B54" : "rgba(0,107,84,0.2)"}`,
+                                    background: on ? "rgba(0,107,84,0.08)" : "rgba(0,0,0,0.02)",
+                                    transition: "all 0.15s" }}>
+                                  <div style={{ borderRadius: 6, overflow: "hidden", marginBottom: "0.3rem" }}>{thumb}</div>
+                                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: on ? "#006B54" : "#5A4A3A" }}>{label}</div>
+                                  <div style={{ fontSize: "0.55rem", color: "#8A7A66", lineHeight: 1.4 }}>{desc}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
 
                   <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, margin: "0.95rem 0 0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>نوع اللوحة <span style={{ color: "#8A7A66", fontWeight: 600 }}>· المتاح لـ{estById(s.establishmentType).label}</span></div>
-                  <Choice value={s.signType} cols={2}
-                    onChange={v => { const k = SIGN_KINDS.find(x => x.id === v); if (k && k.ready) set({ signType: v }); else flash("هذا النوع من اللوحات يُضاف في مرحلة لاحقة"); }}
-                    options={SIGN_KINDS.filter(k => estById(s.establishmentType).kinds.includes(k.id)).map(k => ({ v: k.id, label: k.ready ? k.label : k.label + " (قريباً)" }))} />
+                  {(() => {
+                    const THUMBS: Record<string, React.ReactNode> = {
+                      parallel: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="4" y="4" width="58" height="44" fill="#C8BAA8" stroke="#A09078" strokeWidth="0.6"/>{[0,1,2].map(c=><rect key={c} x={7+c*18} y={9} width={14} height={9} fill="#9ABCCC" opacity="0.65" rx="1"/>)}{[0,1].map(c=><rect key={c} x={7+c*18} y={21} width={14} height={9} fill="#9ABCCC" opacity="0.65" rx="1"/>)}<rect x="4" y="15" width="58" height="11" fill="#2C1E15"/><text x="33" y="23" textAnchor="middle" fill="#C9A24B" fontSize="4.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text><rect x="4" y="46" width="58" height="2.5" fill="#A09078"/></svg>
+                      ),
+                      projecting: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="4" y="4" width="28" height="44" fill="#C8BAA8" stroke="#A09078" strokeWidth="0.6"/>{[0,1].map(r=>[0].map(c=><rect key={`${r}${c}`} x={7} y={8+r*16} width={20} height={12} fill="#9ABCCC" opacity="0.65" rx="1"/>))}<rect x="32" y="17" width="40" height="18" fill="#2C1E15" stroke="#C9A24B" strokeWidth="0.8" rx="2"/><text x="52" y="27.5" textAnchor="middle" fill="#C9A24B" fontSize="5.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text><rect x="29" y="21" width="4" height="4" fill="#6A5A4A"/><rect x="29" y="28" width="4" height="4" fill="#6A5A4A"/></svg>
+                      ),
+                      entrance: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="8" y="8" width="62" height="40" fill="#C8BAA8" stroke="#A09078" strokeWidth="0.6"/><rect x="26" y="22" width="26" height="26" fill="#9ABCCC" opacity="0.75"/><rect x="6" y="12" width="66" height="14" fill="#2C1E15" stroke="#C9A24B" strokeWidth="0.7" rx="2"/><text x="39" y="21.5" textAnchor="middle" fill="#C9A24B" fontSize="5" fontFamily="Cairo,sans-serif" fontWeight="bold">المدخل الرئيسي</text></svg>
+                      ),
+                      brand: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="16" y="14" width="46" height="34" fill="#C8BAA8" stroke="#A09078" strokeWidth="0.6"/>{[0,1,2].map(r=>[0,1,2].map(c=><rect key={`${r}${c}`} x={18+c*14} y={19+r*8} width={12} height={6} fill="#9ABCCC" opacity="0.65" rx="0.5"/>))}<rect x="16" y="5" width="46" height="11" fill="#C9A24B" rx="1.5"/><text x="39" y="12.5" textAnchor="middle" fill="#2C1E15" fontSize="5" fontFamily="sans-serif" fontWeight="bold">HOTEL / HOSPITAL</text></svg>
+                      ),
+                      directory: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="6" y="4" width="48" height="44" fill="#D8EAF0" stroke="#A0C0D0" strokeWidth="0.6"/><rect x="20" y="8" width="20" height="30" fill="#8A5E38" rx="2"/><rect x="18" y="47" width="24" height="3.5" fill="#5A3A1A" rx="1"/><rect x="21" y="10" width="18" height="8" fill="#C9A24B" rx="1"/><text x="30" y="16.5" textAnchor="middle" fill="#2C1E15" fontSize="3.8" fontFamily="Cairo,sans-serif" fontWeight="bold">الاسم / الشعار</text>{[0,1,2].map(i=><rect key={i} x={21} y={21+i*6} width={18} height={4.5} fill={i%2===0?"#2C1E15":"#3A2820"} rx="0.8"/>)}</svg>
+                      ),
+                      flags: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/>{[14,39,64].map((x,i)=><g key={i}><line x1={x} y1="6" x2={x} y2="47" stroke="#8A7A66" strokeWidth="1.5"/><polygon points={`${x},6 ${x+16},12 ${x},18`} fill={i===1?"#33261A":"#C9A24B"} opacity="0.9"/></g>)}</svg>
+                      ),
+                      "acrylic-indoor": (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="4" y="4" width="70" height="44" fill="#EEF4F8" stroke="#B0C8D8" strokeWidth="0.7"/><rect x="14" y="14" width="50" height="24" fill="#2C1E15" stroke="#C9A24B" strokeWidth="1" rx="2"/><text x="39" y="27" textAnchor="middle" fill="#C9A24B" fontSize="5.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text><text x="39" y="34.5" textAnchor="middle" fill="#A39584" fontSize="3.8" fontFamily="sans-serif">COMPANY NAME</text></svg>
+                      ),
+                      "upper-facade": (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="12" y="4" width="54" height="44" fill="#C8BAA8" stroke="#A09078" strokeWidth="0.6"/>{[0,1].map(r=>[0,1,2].map(c=><rect key={`${r}${c}`} x={14+c*17} y={7+r*10} width={14} height={7} fill="#9ABCCC" opacity="0.65" rx="0.5"/>))}<rect x="12" y="30" width="54" height="11" fill="#2C1E15" stroke="#C9A24B" strokeWidth="0.7"/><text x="39" y="37.5" textAnchor="middle" fill="#C9A24B" fontSize="4.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text></svg>
+                      ),
+                      tenant: (
+                        <svg viewBox="0 0 78 52" width="78" height="52"><rect width="78" height="52" fill="#EDE6DC"/><rect x="4" y="4" width="50" height="44" fill="#D8EAF0" stroke="#A0C0D0" strokeWidth="0.6"/><rect x="59" y="4" width="14" height="44" fill="#8A5E38" rx="2"/><rect x="57" y="47" width="18" height="3.5" fill="#5A3A1A" rx="1"/><rect x="60" y="6" width="12" height="8" fill="#C9A24B" rx="1"/>{[0,1,2].map(i=><rect key={i} x={60} y={17+i*9} width={12} height={7} fill={i%2===0?"#2C1E15":"#3A2820"} rx="1"/>)}</svg>
+                      ),
+                    };
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                        {SIGN_KINDS.filter(k => estById(s.establishmentType).kinds.includes(k.id)).map(k => {
+                          const on = s.signType === k.id;
+                          return (
+                            <div key={k.id}
+                              onClick={() => set({ signType: k.id })}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                                padding: "0.55rem 0.7rem", borderRadius: 10, cursor: "pointer",
+                                fontFamily: "Cairo,sans-serif", textAlign: "right",
+                                border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.25)"}`,
+                                background: on ? "#2C1E15" : "#E8DAC0",
+                                color: on ? GOLD : "#5A4A3A",
+                                transition: "all 0.15s", userSelect: "none" }}>
+                              <div style={{ fontSize: "0.82rem", fontWeight: 700, lineHeight: 1.4 }}>
+                                {k.label}
+                              </div>
+                              <div
+                                onClick={e => { e.stopPropagation(); setSignKindPreview(k.id); }}
+                                title="عرض النموذج التوضيحي"
+                                style={{ flexShrink: 0, fontSize: "0.6rem", fontWeight: 700,
+                                  color: on ? "rgba(201,162,75,0.7)" : "rgba(90,74,58,0.6)",
+                                  padding: "0.15rem 0.4rem", borderRadius: 6,
+                                  border: `1px solid ${on ? "rgba(201,162,75,0.3)" : "rgba(154,106,42,0.2)"}`,
+                                  marginInlineStart: "0.5rem", whiteSpace: "nowrap" }}>
+                                معاينة ↗
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, margin: "0.95rem 0 0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>سياق الواجهة (لفحص الاشتراطات)</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
@@ -3902,31 +4495,43 @@ export default function RaisedLettersPage() {
                   )}
                   <div style={{ marginTop: "0.75rem" }}>
                     <div style={{ fontSize: "0.7rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.45rem" }}>لون الخلفية</div>
-                    <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
-                      {BG_COLORS.filter(c => c.id !== "custom").map(c => { const active = s.bgColorId === c.id && !s.bgCustomColor; return (
-                        <button key={c.id} onClick={() => set({ bgColorId: c.id, bgCustomColor: "" })} title={c.label}
-                          style={{ width: 28, height: 28, borderRadius: 7, background: c.hex, border: `2px solid ${active ? SEL_RED : "rgba(154,106,42,0.25)"}`, boxShadow: active ? `0 0 0 1px ${SEL_RED}` : "none", cursor: "pointer", outline: "none", flexShrink: 0 }}>
-                          {active && <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", fontSize: "0.7rem", fontWeight: 900, color: tickColor(c.hex) }}>✓</span>}
-                        </button>
-                      ); })}
-                      {/* لون مخصص — مظهر قوس قزح يُفهم بالنظر أنه «اختر أي لون» */}
-                      <label title="لون مخصص — اختر أي لون"
-                        style={{ position: "relative", width: 28, height: 28, borderRadius: 7, flexShrink: 0, cursor: "pointer", overflow: "hidden",
-                          border: `2px solid ${s.bgCustomColor ? SEL_RED : "rgba(154,106,42,0.25)"}`,
-                          boxShadow: s.bgCustomColor ? `0 0 0 1px ${SEL_RED}` : "none",
-                          background: s.bgCustomColor || "conic-gradient(from 0deg, #ff3b30, #ffcc00, #34c759, #00c7be, #007aff, #af52de, #ff2d55, #ff3b30)" }}>
-                        <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 900, lineHeight: 1,
-                          color: s.bgCustomColor ? tickColor(s.bgCustomColor) : "#fff", textShadow: s.bgCustomColor ? "none" : "0 1px 2px rgba(0,0,0,0.6)", pointerEvents: "none" }}>
-                          {s.bgCustomColor ? "✓" : "+"}
-                        </span>
-                        <input type="color" value={s.bgCustomColor || "#aaaaaa"} onChange={e => set({ bgColorId: "custom", bgCustomColor: e.target.value })}
-                          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
-                      </label>
-                    </div>
-                    {s.bgMode === "exists" && (
-                      <div style={{ marginTop: "0.4rem", fontSize: "0.6rem", color: "#8A7A66", lineHeight: 1.5 }}>
-                        اللون يظهر في المعاينة فقط لمطابقة خلفيتك الحالية — <b>لا يُحتسب في التسعير</b> لأن الخلفية موجودة لديك.
+                    {s.establishmentType === "supermarket" ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.45rem 0.6rem", borderRadius: 8, background: "rgba(0,107,84,0.08)", border: "1px solid rgba(0,107,84,0.3)" }}>
+                        <div style={{ width: 24, height: 24, borderRadius: 5, background: SUPERMARKET_GREEN, flexShrink: 0, border: "1.5px solid rgba(0,107,84,0.5)" }} />
+                        <div style={{ fontSize: "0.62rem", color: "#2E7A3E", lineHeight: 1.4 }}>
+                          <b>Pantone 328</b> — اللون الموحّد للتموينات (مثبّت بدليل الوزارة)
+                          <br /><span style={{ opacity: 0.7 }}>🔒 لا يمكن تغييره</span>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
+                          {BG_COLORS.filter(c => c.id !== "custom").map(c => { const active = s.bgColorId === c.id && !s.bgCustomColor; return (
+                            <button key={c.id} onClick={() => set({ bgColorId: c.id, bgCustomColor: "" })} title={c.label}
+                              style={{ width: 28, height: 28, borderRadius: 7, background: c.hex, border: `2px solid ${active ? SEL_RED : "rgba(154,106,42,0.25)"}`, boxShadow: active ? `0 0 0 1px ${SEL_RED}` : "none", cursor: "pointer", outline: "none", flexShrink: 0 }}>
+                              {active && <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", fontSize: "0.7rem", fontWeight: 900, color: tickColor(c.hex) }}>✓</span>}
+                            </button>
+                          ); })}
+                          {/* لون مخصص — مظهر قوس قزح يُفهم بالنظر أنه «اختر أي لون» */}
+                          <label title="لون مخصص — اختر أي لون"
+                            style={{ position: "relative", width: 28, height: 28, borderRadius: 7, flexShrink: 0, cursor: "pointer", overflow: "hidden",
+                              border: `2px solid ${s.bgCustomColor ? SEL_RED : "rgba(154,106,42,0.25)"}`,
+                              boxShadow: s.bgCustomColor ? `0 0 0 1px ${SEL_RED}` : "none",
+                              background: s.bgCustomColor || "conic-gradient(from 0deg, #ff3b30, #ffcc00, #34c759, #00c7be, #007aff, #af52de, #ff2d55, #ff3b30)" }}>
+                            <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 900, lineHeight: 1,
+                              color: s.bgCustomColor ? tickColor(s.bgCustomColor) : "#fff", textShadow: s.bgCustomColor ? "none" : "0 1px 2px rgba(0,0,0,0.6)", pointerEvents: "none" }}>
+                              {s.bgCustomColor ? "✓" : "+"}
+                            </span>
+                            <input type="color" value={s.bgCustomColor || "#aaaaaa"} onChange={e => set({ bgColorId: "custom", bgCustomColor: e.target.value })}
+                              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+                          </label>
+                        </div>
+                        {s.bgMode === "exists" && (
+                          <div style={{ marginTop: "0.4rem", fontSize: "0.6rem", color: "#8A7A66", lineHeight: 1.5 }}>
+                            اللون يظهر في المعاينة فقط لمطابقة خلفيتك الحالية — <b>لا يُحتسب في التسعير</b> لأن الخلفية موجودة لديك.
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                   <div style={{ marginTop: "0.75rem" }}>
@@ -3986,115 +4591,50 @@ export default function RaisedLettersPage() {
                 <Stepper label="" value={s.letterDepthCm} onChange={v => set({ letterDepthCm: v })} min={2} max={25} step={1} presets={[3,5,8,12]} />
               </div>
             </div>
+
+            {/* ── أشكال الخلفية ── */}
+            <div style={{ marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(154,106,42,0.18)" }}>
+              <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.2rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>أشكال خلفية ملونة</div>
+              <div style={{ fontSize: "0.6rem", color: "#8A7A66", marginBottom: "0.45rem" }}>أشرطة وأقسام لونية تُضاف خلف المحتوى</div>
+              <div style={{ display: "flex", gap: "0.4rem" }}>
+                {([["rect","■","شريط/مستطيل"],["circle","●","دائرة"],["line","━","فاصل"],["triangle","▲","مثلث"]] as const).map(([type,icon,label]) => (
+                  <button key={type} onClick={() => addShape(type)}
+                    style={{ flex:1, padding:"0.4rem 0.2rem", borderRadius:8, cursor:"pointer", fontFamily:"Cairo,sans-serif", fontSize:"0.65rem", fontWeight:700, border:"1px solid rgba(154,106,42,0.2)", background:"rgba(154,106,42,0.06)", color:"#5A4A3A", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                    <span style={{ fontSize:"0.82rem", color:GOLD }}>{icon}</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </AccordionSection>
 
           {/* 3 — خامة الحروف والتشطيب */}
           <AccordionSection title="خامة الحروف والتشطيب" icon="🔩" num={3} done={confirmed("material")} open={openSections.includes("material")} onToggle={() => toggleSection("material")} onConfirm={() => confirmSection("material")}>
             <div style={{ marginTop: "0.5rem" }}>
-              {/* تبويب المجموعة: النصوص ↔ اللوجوهات والمحتويات (خامات منفصلة) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", background: "#E8DAC0", padding: "0.3rem", borderRadius: 11, marginBottom: "0.75rem", border: "1px solid rgba(154,106,42,0.2)" }}>
-                {([["text", "النصوص", "أ ب"], ["content", "اللوجوهات والمحتويات", "◆"]] as const).map(([g, label, ic]) => {
-                  const on = matGroup === g;
-                  return (
-                    <button key={g} onClick={() => setMatGroup(g)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0.5rem 0.4rem", borderRadius: 9, cursor: "pointer", border: "none", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.74rem", background: on ? GOLD : "transparent", color: on ? "#2C1E15" : "#5A4A3A" }}>
-                      <span style={{ fontSize: "0.85rem" }}>{ic}</span>{label}
-                    </button>
-                  );
-                })}
+              {/* tabs: نصوص / محتويات */}
+              <div style={{ display: "flex", gap: 6, marginBottom: "0.6rem" }}>
+                {(["text","content"] as const).map(g => (
+                  <button key={g} onClick={() => setMatGroup(g)}
+                    style={{ flex: 1, padding: "0.35rem 0", borderRadius: 8, border: matGroup === g ? "1.5px solid #C9A24B" : "1px solid rgba(154,106,42,0.25)", background: matGroup === g ? "rgba(201,162,75,0.12)" : "transparent", fontFamily: "Cairo,sans-serif", fontWeight: matGroup===g?800:600, fontSize: "0.75rem", color: matGroup===g?"#2C1E15":"#634E40", cursor: "pointer" }}>
+                    {g === "text" ? "🔤 النصوص" : "🖼 المحتويات"}
+                  </button>
+                ))}
               </div>
-              <div style={{ fontSize: "0.62rem", color: "#5A4A3A", marginBottom: "0.6rem", lineHeight: 1.5 }}>
-                تضبط الخامة واللون لـ <b style={{ color: GOLD }}>{matGroup === "text" ? "النصوص" : "اللوجوهات والمحتويات الأخرى"}</b> بشكل مستقل عن المجموعة الأخرى.
-              </div>
-
-
-              {/* خامات الوجه والجوانب — موحّدة أو مختلفة */}
-              <div style={{ fontSize: "0.7rem", color: "#2C1E15", fontWeight: 800, marginBottom: "0.4rem" }}>خامات الوجه والجوانب</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.7rem" }}>
-                {([[true, "موحّدة", "خامة ولون واحد للوجه والجوانب"], [false, "مختلفة", "خامة ولون لكلٍّ على حدة"]] as const).map(([v, title, sub]) => {
-                  const on = uni === v;
-                  return (
-                    <button key={String(v)} onClick={() => setUni(v)} style={{ textAlign: "right", padding: "0.55rem 0.65rem", borderRadius: 10, cursor: "pointer", fontFamily: "Cairo,sans-serif",
-                      border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.2)"}`, background: on ? "rgba(201,162,75,0.08)" : "#E8DAC0" }}>
-                      <div style={{ fontSize: "0.74rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{title}</div>
-                      <div style={{ fontSize: "0.58rem", color: "#5A4A3A", marginTop: 2, lineHeight: 1.4 }}>{sub}</div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {uni ? (
-                <>
-                  {/* خامة موحّدة (وجه = جوانب) */}
-                  <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>الخامة (الوجه والجوانب)</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "0.5rem" }}>
-                    {FACE_MATS(s.coloredDesign).map(t => { const on = MG.typeId === t.id; return (
-                      <button key={t.id} onClick={() => { setMG({ typeId: t.id, sideMat: t.id, faceColorId: t.colors[0], sideColorId: t.colors[0], faceCustomColor: "", sideCustomColor: "" }); applyFinishToDesigns(matGroup); }} style={{ textAlign: "center", borderRadius: 10, overflow: "hidden", cursor: "pointer", padding: 0, border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.2)"}`, background: on ? "rgba(201,162,75,0.06)" : "#E8DAC0" }}>
-                        <div style={{ height: 36, background: t.grad, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span style={{ fontFamily: "Cairo,sans-serif", fontWeight: 900, fontSize: "0.95rem", color: "rgba(255,255,255,0.9)" }}>أ ب</span>
-                        </div>
-                        <div style={{ padding: "0.3rem 0.4rem", fontSize: "0.64rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{t.label}</div>
-                      </button>
-                    ); })}
+              {/* بطاقة الخامة الحالية + زر الفتح */}
+              <button onClick={() => setShowMatModal(true)}
+                style={{ width: "100%", textAlign: "right", padding: "0.6rem 0.75rem", borderRadius: 10, border: "1px solid rgba(201,162,75,0.35)", background: "rgba(201,162,75,0.06)", fontFamily: "Cairo,sans-serif", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "0.7rem", color: "#9A7A46" }}>اضغط للتعديل ▸</span>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800, fontSize: "0.82rem", color: "#2C1E15" }}>
+                    {letterTypes.find(lt => lt.slug === (isText ? s.typeId+"-"+(s.sideMat==="aluminum"?"alum":s.sideMat) : s.cTypeId+"-"+(s.cSideMat==="aluminum"?"alum":s.cSideMat)))?.nameAr
+                      ?? letterTypes.find(lt => lt.faceMaterial === (isText?s.typeId:s.cTypeId))?.nameAr
+                      ?? "🔩 اختر خامة الحرف"}
                   </div>
-                  <div style={{ marginTop: "0.55rem", marginBottom: "0.2rem", fontSize: "0.66rem", color: "#5A4A3A", fontWeight: 700 }}>اللون</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.45rem", flexWrap: "wrap" }}>
-                    <Swatches ids={MG.faceType.colors} value={MG.faceCustomColor ? "" : MG.faceColorId} onChange={v => { setMG({ faceColorId: v, sideColorId: v, faceCustomColor: "", sideCustomColor: "" }); applyFinishToDesigns(matGroup); }} />
-                    {MG.typeId !== "stainless" && <CustomColorSwatch active={!!MG.faceCustomColor} hex={MG.faceCustomColor} onPick={h => { setMG({ faceCustomColor: h, sideCustomColor: h }); applyFinishToDesigns(matGroup); }} />}
+                  <div style={{ fontSize: "0.68rem", color: "#9A7A46", marginTop: 2 }}>
+                    {MG.faceType.label} · {MG.sideType.label} · {isText ? (s.lightTypeId==="none"?"بدون إضاءة":s.lightTypeId==="front"?"أمامية":s.lightTypeId==="back"?"خلفية":"مزدوجة") : "—"}
                   </div>
-                </>
-              ) : (
-                <>
-                  {/* خامة الوجه */}
-                  <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>خامة الوجه</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "0.5rem" }}>
-                    {FACE_MATS(s.coloredDesign).map(t => { const on = MG.typeId === t.id; return (
-                      <button key={t.id} onClick={() => { setMG({ typeId: t.id, faceColorId: t.colors[0], faceCustomColor: "" }); applyFinishToDesigns(matGroup); }} style={{ textAlign: "center", borderRadius: 10, overflow: "hidden", cursor: "pointer", padding: 0, border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.2)"}`, background: on ? "rgba(201,162,75,0.06)" : "#E8DAC0" }}>
-                        <div style={{ height: 36, background: t.grad, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span style={{ fontFamily: "Cairo,sans-serif", fontWeight: 900, fontSize: "0.95rem", color: "rgba(255,255,255,0.9)" }}>أ ب</span>
-                        </div>
-                        <div style={{ padding: "0.3rem 0.4rem", fontSize: "0.64rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{t.label}</div>
-                      </button>
-                    ); })}
-                  </div>
-                  <div style={{ marginTop: "0.55rem", marginBottom: "0.2rem", fontSize: "0.66rem", color: "#5A4A3A", fontWeight: 700 }}>لون الوجه</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.45rem", flexWrap: "wrap" }}>
-                    <Swatches ids={MG.faceType.colors} value={MG.faceCustomColor ? "" : MG.faceColorId} onChange={v => { setMG({ faceColorId: v, faceCustomColor: "" }); applyFinishToDesigns(matGroup); }} />
-                    {MG.typeId !== "stainless" && <CustomColorSwatch active={!!MG.faceCustomColor} hex={MG.faceCustomColor} onPick={h => { setMG({ faceCustomColor: h }); applyFinishToDesigns(matGroup); }} />}
-                  </div>
-
-                  {/* خامة الجوانب */}
-                  <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, margin: "0.75rem 0 0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>خامة الجوانب</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.45rem" }}>
-                    {SIDE_MATS.map(t => { const on = MG.sideMat === t.id; return (
-                      <button key={t.id} onClick={() => setMG({ sideMat: t.id, sideColorId: t.colors[0], sideCustomColor: "" })} style={{ textAlign: "center", borderRadius: 9, overflow: "hidden", cursor: "pointer", padding: 0, border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.2)"}`, background: on ? "rgba(201,162,75,0.06)" : "#E8DAC0" }}>
-                        <div style={{ height: 28, background: t.grad }} />
-                        <div style={{ padding: "0.25rem", fontSize: "0.6rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{t.label}</div>
-                      </button>
-                    ); })}
-                  </div>
-                  <div style={{ marginTop: "0.5rem", marginBottom: "0.2rem", fontSize: "0.66rem", color: "#5A4A3A", fontWeight: 700 }}>لون الجوانب</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.45rem", flexWrap: "wrap" }}>
-                    <Swatches ids={MG.sideType.colors} value={MG.sideCustomColor ? "" : MG.sideColorId} onChange={v => setMG({ sideColorId: v, sideCustomColor: "" })} />
-                    {MG.sideMat !== "stainless" && <CustomColorSwatch active={!!MG.sideCustomColor} hex={MG.sideCustomColor} onPick={h => setMG({ sideCustomColor: h })} />}
-                  </div>
-                </>
-              )}
-
-              {/* كنتور حول الأحرف — يظهر فقط لوجه أكريلك وجوانب ستانلس/زنكور (مجموعة النصوص) */}
-              {matGroup === "text" && !uni && frameEligible && (
-                <div style={{ marginTop: "0.85rem", paddingTop: "0.7rem", borderTop: "1px solid rgba(154,106,42,0.18)" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", padding: "0.55rem 0.65rem", borderRadius: 9, background: "#E8DAC0", border: `1px solid ${s.faceBorder ? GOLD + "55" : "rgba(154,106,42,0.2)"}` }}>
-                    <input type="checkbox" checked={s.faceBorder} onChange={e => set({ faceBorder: e.target.checked })} style={{ accentColor: GOLD, width: 15, height: 15 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#2C1E15" }}>كنتور حول الأحرف (بخامة ولون الجوانب)</div>
-                      <div style={{ fontSize: "0.6rem", color: "#5A4A3A", display: "flex", alignItems: "center", gap: 5 }}>
-                        حدّ يتبع شكل كل حرف ومحتوى — {sideType.label}
-                        <span title="لون الكنتور" style={{ width: 12, height: 12, borderRadius: 3, background: s.sideCustomColor || (COL[s.sideColorId]?.hex || "#999"), border: "1px solid rgba(154,106,42,0.4)", display: "inline-block", flexShrink: 0 }} />
-                      </div>
-                    </div>
-                  </label>
                 </div>
-              )}
+              </button>
             </div>
           </AccordionSection>
         </div>
@@ -4128,15 +4668,148 @@ export default function RaisedLettersPage() {
               {/* محتويات اللوحة المطلوبة حسب نوع المنشأة ونوع اللوحة (إجباري/اختياري) */}
               {(() => {
                 const spec = contentSpec(s.establishmentType);
+                // للتموينات: استثناء طبقة الشريط السفلي من كشف العناصر الرئيسية
+                const supStripTop = s.establishmentType === "supermarket"
+                  ? ((s.bgH - SUPERMARKET_STRIP_CM) / s.bgH) * 100 : 101;
                 const has: Record<string, boolean> = {
-                  arname: layers.some(l => l.kind === "text" && l.lang === "ar" && (l.text || "").trim() !== ""),
-                  enname: layers.some(l => l.kind === "text" && l.lang === "en" && (l.text || "").trim() !== ""),
+                  arname: layers.some(l => l.kind === "text" && l.lang === "ar" && l.y < supStripTop && (l.text || "").trim() !== ""),
+                  enname: layers.some(l => l.kind === "text" && l.lang === "en" && l.y < supStripTop && (l.text || "").trim() !== ""),
                   qr:     layers.some(l => l.kind === "qr"),
                   logo:   layers.some(l => l.kind === "logo" || (l.kind === "svg" && l.aspect > 0.5)),
                   phone:  layers.some(l => l.kind === "text" && /[0-9]{7,}/.test((l.text || "").replace(/\s/g, ""))),
                 };
+                // طبقات مرتبطة بالمفاتيح (للتموينات)
+                const arLayer = layers.find(l => l.kind === "text" && l.lang === "ar" && l.y < supStripTop);
+                const enLayer = layers.find(l => l.kind === "text" && l.lang === "en" && l.y < supStripTop);
+                const stripL  = layers.find(l => l.kind === "text" && l.y >= supStripTop);
+                // استخراج أرقام الشريط
+                const stripText  = (stripL?.kind === "text" ? stripL.text : "") || "";
+                const toAr = (s: string) => s.replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
+                const toEn = (s: string) => s.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+                // الأرقام مخزّنة عربية في الطبقة — نحوّل النص لغربي للمطابقة فقط
+                const stripTextN = toEn(stripText);
+                const phoneMatch = stripTextN.match(/(جوال|هاتف)\s*(\d*)/);
+                const stripPhone = phoneMatch ? phoneMatch[2] : "";
+                const stripCTp   = (phoneMatch ? phoneMatch[1] : supContactType) as "جوال" | "هاتف";
+                const crMatch    = stripTextN.match(/سجل تجاري\s*([\d\-]*)/);
+                const stripCR    = crMatch ? crMatch[1] : "";
+                // تحديث نص الشريط — يخزّن الأرقام عربية ويحافظ على الجزء الآخر
+                const updateStrip = (type: string, num: string) => {
+                  if (!stripL) return;
+                  const cr = toEn(stripText).match(/سجل تجاري\s*([\d\-]*)/)?.[1] ?? "٠٠٠٠٠٠٠";
+                  updateLayer(stripL.id, { text: `${type} ${toAr(num)}  |  سجل تجاري ${toAr(cr)}` });
+                };
+                const updateStripCR = (cr: string) => {
+                  if (!stripL) return;
+                  const type = stripText.match(/(جوال|هاتف)/)?.[1] ?? supContactType;
+                  const num  = toEn(stripText).match(/(جوال|هاتف)\s*(\d*)/)?.[2] ?? "";
+                  updateLayer(stripL.id, { text: `${type} ${toAr(num)}  |  سجل تجاري ${toAr(cr)}` });
+                };
+                const inputStyle: React.CSSProperties = {
+                  flex: 1, padding: "0.22rem 0.5rem", borderRadius: 7, border: "1.5px solid rgba(154,106,42,0.35)",
+                  fontFamily: "Cairo,sans-serif", fontSize: "0.7rem", background: "#FBF6EC",
+                  color: "#2C1E15", outline: "none", direction: "rtl", minWidth: 0,
+                };
                 const Row = (it: ContentReq, required: boolean) => {
                   const present = has[it.key];
+                  const isSup = s.establishmentType === "supermarket";
+                  // صفوف arname/enname للتموينات: حقل إدخال مرتبط بالطبقة
+                  if (isSup && (it.key === "arname" || it.key === "enname")) {
+                    const layer = it.key === "arname" ? arLayer : enLayer;
+                    const layerText = layer?.kind === "text" ? layer.text : "";
+                    return (
+                      <div key={it.key} style={{ borderRadius: 9, background: present ? "rgba(46,122,62,0.06)" : "#F2E8D0", border: `1px solid ${present ? "rgba(46,122,62,0.3)" : "rgba(154,106,42,0.18)"}`, overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.38rem 0.55rem" }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(154,106,42,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 800, color: "#9A6A2A", flexShrink: 0 }}>{it.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#2C1E15" }}>{it.label}</div>
+                            {it.hint && !present && <div style={{ fontSize: "0.59rem", color: "#8A7A66" }}>{it.hint}</div>}
+                          </div>
+                          {present && <span style={{ flexShrink: 0, fontSize: "0.62rem", fontWeight: 800, color: "#2E7A3E" }}>✓</span>}
+                        </div>
+                        <div style={{ padding: "0 0.55rem 0.45rem", display: "flex", gap: 6 }}>
+                          <input
+                            style={{ ...inputStyle, textAlign: it.key === "enname" ? "left" : "right", direction: it.key === "enname" ? "ltr" : "rtl" }}
+                            placeholder={it.key === "arname" ? "اسم المنشأة بالعربية" : "Brand Name"}
+                            value={layerText}
+                            onChange={e => layer ? updateLayer(layer.id, { text: e.target.value }) : undefined}
+                          />
+                          {!present && (
+                            <button onClick={() => addContentItem(it.key)}
+                              style={{ flexShrink: 0, padding: "0.22rem 0.7rem", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.63rem", background: required ? G : "rgba(154,106,42,0.14)", color: required ? "#2C1E15" : "#9A6A2A", whiteSpace: "nowrap" }}>
+                              + إضافة
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  // صف رقم السجل التجاري (QR) للتموينات: رقم السجل + إضافة QR
+                  if (isSup && it.key === "qr") {
+                    return (
+                      <div key={it.key} style={{ borderRadius: 9, background: present ? "rgba(46,122,62,0.06)" : "#F2E8D0", border: `1px solid ${present ? "rgba(46,122,62,0.3)" : "rgba(154,106,42,0.18)"}`, overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.38rem 0.55rem" }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(154,106,42,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 800, color: "#9A6A2A", flexShrink: 0 }}>{it.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#2C1E15" }}>{it.label}</div>
+                            {it.hint && <div style={{ fontSize: "0.59rem", color: "#8A7A66" }}>{it.hint}</div>}
+                          </div>
+                          {present && <span style={{ flexShrink: 0, fontSize: "0.62rem", fontWeight: 800, color: "#2E7A3E" }}>✓</span>}
+                        </div>
+                        <div style={{ padding: "0 0.55rem 0.45rem" }}>
+                          <input
+                            style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                            placeholder="رقم السجل التجاري"
+                            inputMode="numeric"
+                            lang="ar"
+                            value={toAr(stripCR)}
+                            onChange={e => updateStripCR(toEn(e.target.value))}
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+                  // صف رقم التواصل للتموينات: خيار هاتف/جوال + رقم
+                  if (isSup && it.key === "phone") {
+                    return (
+                      <div key={it.key} style={{ borderRadius: 9, background: present ? "rgba(46,122,62,0.06)" : "#F2E8D0", border: `1px solid ${present ? "rgba(46,122,62,0.3)" : "rgba(154,106,42,0.18)"}`, overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.38rem 0.55rem" }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(154,106,42,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 800, color: "#9A6A2A", flexShrink: 0 }}>{it.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#2C1E15" }}>{it.label}</div>
+                          </div>
+                          {present && <span style={{ flexShrink: 0, fontSize: "0.62rem", fontWeight: 800, color: "#2E7A3E" }}>✓</span>}
+                        </div>
+                        {/* اختيار نوع التواصل */}
+                        <div style={{ padding: "0 0.55rem", display: "flex", gap: 6, marginBottom: "0.3rem" }}>
+                          {(["جوال", "هاتف"] as const).map(t => (
+                            <button key={t} onClick={() => { setSupContactType(t); if (stripL) updateStrip(t, stripPhone || "000-0000000"); }}
+                              style={{ flex: 1, padding: "0.22rem", borderRadius: 7, border: `1.5px solid ${stripCTp === t ? "#006B54" : "rgba(154,106,42,0.25)"}`, background: stripCTp === t ? "rgba(0,107,84,0.1)" : "transparent", fontFamily: "Cairo,sans-serif", fontSize: "0.7rem", fontWeight: 700, color: stripCTp === t ? "#006B54" : "#5A4A3A", cursor: "pointer" }}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                        {/* حقل الرقم */}
+                        <div style={{ padding: "0 0.55rem 0.45rem", display: "flex", gap: 6 }}>
+                          <input
+                            style={{ ...inputStyle }}
+                            placeholder="05XXXXXXXXX"
+                            inputMode="numeric"
+                            lang="ar"
+                            value={toAr(stripPhone)}
+                            onChange={e => { if (stripL) updateStrip(stripCTp, toEn(e.target.value)); }}
+                          />
+                          {!present && (
+                            <button onClick={() => { if (!stripL) addContentItem(it.key); }}
+                              style={{ flexShrink: 0, padding: "0.22rem 0.7rem", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.63rem", background: "rgba(154,106,42,0.14)", color: "#9A6A2A", whiteSpace: "nowrap" }}>
+                              + إضافة
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  // الصف العادي لبقية العناصر
                   return (
                     <div key={it.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.42rem 0.55rem", borderRadius: 9, background: present ? "rgba(46,122,62,0.08)" : "#F2E8D0", border: `1px solid ${present ? "rgba(46,122,62,0.3)" : "rgba(154,106,42,0.18)"}` }}>
                       <span style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(154,106,42,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.72rem", fontWeight: 800, color: "#9A6A2A", flexShrink: 0 }}>{it.icon}</span>
@@ -4205,11 +4878,27 @@ export default function RaisedLettersPage() {
                 </div>
               )}
               <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>إضافة عنصر للتصميم</div>
-              <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.6rem" }}>
+              <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.4rem" }}>
                 <button onClick={addText} style={{ flex: 1, padding: "0.45rem", borderRadius: 8, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontSize: "0.74rem", fontWeight: 700, border: "1px solid rgba(201,162,75,0.4)", background: "rgba(201,162,75,0.1)", color: GOLD }}>T نص</button>
                 <button onClick={() => logoRef2.current?.click()} style={{ flex: 1, padding: "0.45rem", borderRadius: 8, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontSize: "0.74rem", fontWeight: 700, border: "1px solid rgba(154,106,42,0.2)", background: "rgba(154,106,42,0.08)", color: "#2C1E15" }}>🖼 شعار</button>
                 <button onClick={addQR} style={{ flex: 1, padding: "0.45rem", borderRadius: 8, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontSize: "0.74rem", fontWeight: 700, border: "1px solid rgba(154,106,42,0.2)", background: "rgba(154,106,42,0.08)", color: "#2C1E15" }}>▦ QR</button>
                 <input ref={logoRef2} type="file" accept="image/*" style={{ display: "none" }} onChange={e => readFile(e, src => addLogo(src))} />
+              </div>
+              {/* أشكال هندسية */}
+              <div style={{ fontSize: "0.63rem", color: "#8A7A66", fontWeight: 700, marginBottom: "0.3rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>أشكال هندسية</div>
+              <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.6rem" }}>
+                {([
+                  ["rect",     "■", "مستطيل"],
+                  ["circle",   "●", "دائرة"],
+                  ["line",     "━", "خط"],
+                  ["triangle", "▲", "مثلث"],
+                ] as const).map(([type, icon, label]) => (
+                  <button key={type} onClick={() => addShape(type)}
+                    style={{ flex: 1, padding: "0.4rem 0.2rem", borderRadius: 8, cursor: "pointer", fontFamily: "Cairo,sans-serif", fontSize: "0.68rem", fontWeight: 700, border: "1px solid rgba(154,106,42,0.2)", background: "rgba(154,106,42,0.06)", color: "#5A4A3A", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                    <span style={{ fontSize: "0.85rem", color: GOLD }}>{icon}</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
               </div>
               <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>العناصر الحالية</div>
               <div style={{ fontSize: "0.6rem", color: "#5A4A3A", marginBottom: "0.45rem" }}>أدوات القياس والفصل والدمج أسفل التصميم</div>
@@ -4279,10 +4968,70 @@ export default function RaisedLettersPage() {
                   </label>
                 </div>
               )}
+
+              {/* ── موقع التركيب ── */}
+              <div style={{ marginTop: "0.85rem" }}>
+                <div style={{ fontSize: "0.68rem", color: "#5A4A3A", fontWeight: 700, marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>موقع التركيب</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                  <button onClick={() => setShowMapModal(true)} style={{ padding: "0.7rem 0.5rem", borderRadius: 10, cursor: "pointer", border: `1.5px solid ${GOLD}`, background: "rgba(201,162,75,0.06)", fontFamily: "Cairo,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.3rem" }}>
+                    <span style={{ fontSize: "1.3rem" }}>🗺</span>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#2C1E15" }}>تحديد من الخريطة</span>
+                    <span style={{ fontSize: "0.58rem", color: "#634E40" }}>فتح الخريطة التفاعلية</span>
+                  </button>
+                  <div style={{ padding: "0.7rem 0.5rem", borderRadius: 10, border: "1.5px solid rgba(154,106,42,0.3)", background: "#E8DAC0", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                      <span style={{ fontSize: "1.1rem" }}>🏠</span>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#2C1E15" }}>العنوان الوطني</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={s.nationalAddress}
+                      onChange={e => set({ nationalAddress: e.target.value })}
+                      placeholder="مثال: RJAB1234"
+                      style={{ width: "100%", padding: "0.4rem 0.5rem", borderRadius: 7, border: "1px solid rgba(154,106,42,0.35)", background: "#F4EFE6", fontFamily: "Cairo,sans-serif", fontSize: "0.72rem", color: "#2C1E15", outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+                {s.nationalAddress && (
+                  <div style={{ marginTop: "0.4rem", padding: "0.4rem 0.65rem", borderRadius: 8, background: "rgba(61,139,78,0.08)", border: "1px solid rgba(61,139,78,0.2)", fontSize: "0.62rem", color: "#2E7A3E", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>✓</span> تم إدخال العنوان: <strong>{s.nationalAddress}</strong>
+                  </div>
+                )}
+              </div>
             </div>
           </AccordionSection>
         </div>
       </div>
+
+      {/* ── Map Modal ── */}
+      {showMapModal && (() => {
+        const c = cityById(s.city);
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 8000, display: "flex", flexDirection: "column", background: "rgba(0,0,0,0.75)" }} onClick={() => setShowMapModal(false)}>
+            <div style={{ margin: "auto", width: "min(96vw,860px)", height: "min(90vh,620px)", borderRadius: 16, overflow: "hidden", background: "#1E1610", border: "1.5px solid rgba(201,162,75,0.35)", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.7rem 1rem", borderBottom: "1px solid rgba(201,162,75,0.2)", background: "#241A11" }}>
+                <div>
+                  <div style={{ fontFamily: "Cairo,sans-serif", fontWeight: 900, fontSize: "0.9rem", color: "#F4ECDD" }}>📍 موقع التركيب</div>
+                  <div style={{ fontFamily: "Cairo,sans-serif", fontSize: "0.62rem", color: "#A39584", marginTop: 2 }}>اختر الموقع الدقيق لتركيب اللوحة — {c.name}</div>
+                </div>
+                <button onClick={() => setShowMapModal(false)} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid rgba(201,162,75,0.3)", background: "rgba(201,162,75,0.08)", color: "#C9A24B", cursor: "pointer", fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Cairo,sans-serif" }}>✕</button>
+              </div>
+              <iframe
+                title="خريطة موقع التركيب"
+                src={osmEmbed(c.lat, c.lng)}
+                style={{ flex: 1, border: "none", display: "block", width: "100%" }}
+                loading="lazy"
+              />
+              <div style={{ padding: "0.6rem 1rem", background: "#241A11", borderTop: "1px solid rgba(201,162,75,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+                <div style={{ fontFamily: "Cairo,sans-serif", fontSize: "0.62rem", color: "#A39584", lineHeight: 1.5 }}>
+                  يمكنك تكبير الخريطة وتحديد الموقع الدقيق للوحة. أو أدخل العنوان الوطني مباشرةً في الحقل المجاور.
+                </div>
+                <button onClick={() => setShowMapModal(false)} style={{ padding: "0.5rem 1.2rem", borderRadius: 999, border: "none", background: G, color: "#2C1E15", fontFamily: "Cairo,sans-serif", fontWeight: 800, fontSize: "0.78rem", cursor: "pointer", whiteSpace: "nowrap" }}>تأكيد الموقع</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Modals & Toast ── */}
       {importOpen && (
@@ -4316,7 +5065,778 @@ export default function RaisedLettersPage() {
       {showFacadeHelp && <FacadeHelpModal value={s.facadeWidthCm} onClose={() => setShowFacadeHelp(false)} />}
       {showHeightHelp && <HeightHelpModal windowHeightCm={s.windowHeightCm} signBottomM={s.signBottomM} onClose={() => setShowHeightHelp(false)} />}
 
+      {/* ── مودال حفظ المشروع ── */}
+      {saveModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setSaveModalOpen(false)}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: "#FDFBF7", borderRadius: 16, padding: "2rem", width: "min(94vw,420px)",
+              border: "1px solid rgba(201,162,75,0.25)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              fontFamily: "Tajawal,Cairo,sans-serif" }} dir="rtl">
+            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.1rem", fontWeight: 800, color: "#2C1E15" }}>
+              {currentProjectId ? "تحديث المشروع المحفوظ" : "حفظ المشروع"}
+            </h3>
+            <p style={{ margin: "0 0 1.2rem", fontSize: "0.82rem", color: "#7A5520" }}>
+              سيُحفظ المشروع في متصفحك ويمكنك العودة إليه من صفحة «مشاريعي» في أي وقت.
+            </p>
+            <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#2C1E15", display: "block", marginBottom: 6 }}>اسم المشروع</label>
+            <input
+              value={saveProjectName}
+              onChange={e => setSaveProjectName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && saveProjectName.trim()) doSaveProject(saveProjectName.trim()); }}
+              placeholder="مثال: لوحة مطعم النخبة"
+              style={{ width: "100%", padding: "0.65rem 0.85rem", borderRadius: 10, border: "1.5px solid rgba(201,162,75,0.35)",
+                background: "#FFF8EC", fontSize: "0.9rem", fontFamily: "inherit", color: "#2C1E15", boxSizing: "border-box",
+                outline: "none", marginBottom: "1.25rem" }}
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => { if (saveProjectName.trim()) doSaveProject(saveProjectName.trim()); }}
+                disabled={!saveProjectName.trim()}
+                style={{ flex: 1, padding: "0.7rem", borderRadius: 999, border: "none", cursor: saveProjectName.trim() ? "pointer" : "not-allowed",
+                  background: saveProjectName.trim() ? "linear-gradient(135deg,#9A7B36,#E6CA83)" : "rgba(154,106,42,0.2)",
+                  color: "#2C1E15", fontWeight: 800, fontSize: "0.9rem", fontFamily: "inherit" }}>
+                حفظ
+              </button>
+              <button onClick={() => setSaveModalOpen(false)}
+                style={{ padding: "0.7rem 1.2rem", borderRadius: 999, border: "1px solid rgba(154,106,42,0.3)",
+                  background: "transparent", color: "#7A5520", cursor: "pointer", fontFamily: "inherit", fontSize: "0.85rem" }}>
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {signKindPreview && (() => {
+        const kindInfo: Record<string, { title: string; desc: string; svg: React.ReactNode }> = {
+          parallel: {
+            title: "موازية لسطح الواجهة",
+            desc: "اللوحة الأكثر شيوعاً — حروف أو لوحة مثبَّتة مسطَّحةً على واجهة المبنى أو المحل مباشرةً، لا تبرز أكثر من 25 سم.",
+            svg: (
+              <svg viewBox="0 0 380 260" style={{ width: "100%", maxWidth: 380, display: "block" }} dir="ltr">
+                {/* ── خلفية ورق رسم ── */}
+                <rect x="0" y="0" width="380" height="260" fill="#F5F0E8"/>
+                {/* إطار أحمر منقط مثل لوحات الأمانة */}
+                <rect x="6" y="6" width="368" height="248" fill="none" stroke="#C0392B" strokeWidth="1" strokeDasharray="4 3"/>
+                {/* عنوان أعلى اليمين */}
+                <text x="370" y="20" textAnchor="end" fill="#C0392B" fontSize="9" fontFamily="Cairo,sans-serif" fontWeight="bold">١:٣:٤  اللوحة الموازية لسطح الواجهة</text>
+                {/* ── سماء فوق المبنى ── */}
+                <rect x="18" y="26" width="344" height="22" fill="#D6E8F0"/>
+                {/* ── سقف المبنى ── */}
+                <rect x="18" y="48" width="344" height="10" fill="#B0A090" stroke="#555" strokeWidth="0.6"/>
+                {/* ── الدور العلوي — جدار ── */}
+                <rect x="18" y="58" width="344" height="80" fill="#E2D6C0" stroke="#555" strokeWidth="0.7"/>
+                {/* نوافذ الدور العلوي — 6 نوافذ */}
+                {[0,1,2,3,4,5].map(i => (
+                  <g key={i}>
+                    <rect x={26+i*56} y="68" width="44" height="58" fill="#B8D4E8" stroke="#555" strokeWidth="0.6"/>
+                    {/* تقسيم النافذة */}
+                    <line x1={26+i*56+22} y1="68" x2={26+i*56+22} y2="126" stroke="#555" strokeWidth="0.4"/>
+                    <line x1={26+i*56} y1="97" x2={26+i*56+44} y2="97" stroke="#555" strokeWidth="0.4"/>
+                  </g>
+                ))}
+                {/* ── شريط فاصل ── */}
+                <rect x="18" y="138" width="344" height="6" fill="#9A8A78" stroke="#555" strokeWidth="0.5"/>
+                {/* ── الدور الأرضي — جدار ── */}
+                <rect x="18" y="144" width="344" height="82" fill="#D8CCBA" stroke="#555" strokeWidth="0.7"/>
+                {/* فواصل عمودية — 3 محلات */}
+                <line x1="133" y1="144" x2="133" y2="226" stroke="#555" strokeWidth="0.8"/>
+                <line x1="248" y1="144" x2="248" y2="226" stroke="#555" strokeWidth="0.8"/>
+                {/* ── لوحات موازية (شريط اللافتة) — المحل 1 ── */}
+                <rect x="19" y="144" width="113" height="24" fill="#1A1208" stroke="#C9A24B" strokeWidth="1"/>
+                <text x="75" y="160" textAnchor="middle" fill="#C9A24B" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">متجر البلدية</text>
+                {/* ── لوحة المحل 2 ── */}
+                <rect x="134" y="144" width="113" height="24" fill="#1A1208" stroke="#C9A24B" strokeWidth="1"/>
+                <text x="190" y="156" textAnchor="middle" fill="#E8E0D0" fontSize="6" fontFamily="Arial,sans-serif">JEDDAH MUNICIPALITY STORE</text>
+                <text x="190" y="165" textAnchor="middle" fill="#C9A24B" fontSize="7.5" fontFamily="Cairo,sans-serif" fontWeight="bold">متجر جدة</text>
+                {/* ── لوحة المحل 3 ── */}
+                <rect x="249" y="144" width="112" height="24" fill="#1A1208" stroke="#C9A24B" strokeWidth="1"/>
+                <text x="305" y="160" textAnchor="middle" fill="#C9A24B" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">أسماك بريم</text>
+                {/* أبواب وواجهات زجاجية المحل 1 */}
+                <rect x="25" y="170" width="38" height="55" fill="#B8D4E8" stroke="#555" strokeWidth="0.5"/>
+                <rect x="69" y="170" width="55" height="55" fill="#C8DDE8" stroke="#555" strokeWidth="0.5"/>
+                {/* أبواب المحل 2 */}
+                <rect x="140" y="170" width="50" height="55" fill="#B8D4E8" stroke="#555" strokeWidth="0.5"/>
+                <rect x="196" y="170" width="42" height="55" fill="#C8DDE8" stroke="#555" strokeWidth="0.5"/>
+                {/* أبواب المحل 3 */}
+                <rect x="255" y="170" width="45" height="55" fill="#B8D4E8" stroke="#555" strokeWidth="0.5"/>
+                <rect x="306" y="170" width="48" height="55" fill="#C8DDE8" stroke="#555" strokeWidth="0.5"/>
+                {/* ── رصيف ── */}
+                <rect x="0" y="226" width="380" height="12" fill="#A09080" stroke="#666" strokeWidth="0.5"/>
+                {/* ── خط أرضي ── */}
+                <rect x="0" y="238" width="380" height="6" fill="#7A6A5A"/>
+                {/* ── خط إرشادي أحمر يُشير للشريط ── */}
+                <line x1="8" y1="144" x2="8" y2="168" stroke="#C0392B" strokeWidth="1" strokeDasharray="2 2"/>
+                <line x1="8" y1="144" x2="18" y2="144" stroke="#C0392B" strokeWidth="1"/>
+                <line x1="8" y1="168" x2="18" y2="168" stroke="#C0392B" strokeWidth="1"/>
+                <text x="7" y="159" textAnchor="middle" fill="#C0392B" fontSize="7" fontFamily="Cairo,sans-serif" transform="rotate(-90,7,159)">اللافتة</text>
+                {/* ── تسمية سفلية ── */}
+                <text x="190" y="252" textAnchor="middle" fill="#555" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اللوحات الموازية لسطح الواجهة</text>
+              </svg>
+            ),
+          },
+          acrylic: {
+            title: "لوحة أكريليك",
+            desc: "لوحة شفافة أو ملونة مطبوعة أو مضاءة من الخلف، تُستخدم داخل المكاتب والمباني الإدارية.",
+            svg: (
+              <svg viewBox="0 0 320 200" style={{ width: "100%", maxWidth: 320 }}>
+                <rect x="40" y="50" width="240" height="100" fill="rgba(180,220,255,0.25)" stroke="#88BBDD" strokeWidth="2" rx="8"/>
+                <rect x="44" y="54" width="232" height="92" fill="rgba(200,230,255,0.15)" rx="6"/>
+                <text x="160" y="95" textAnchor="middle" fill="#2C1E15" fontSize="15" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم الشركة</text>
+                <text x="160" y="115" textAnchor="middle" fill="#5A6A7A" fontSize="10" fontFamily="Cairo,sans-serif">COMPANY NAME</text>
+                <line x1="110" y1="150" x2="110" y2="165" stroke="#88BBDD" strokeWidth="2"/>
+                <line x1="210" y1="150" x2="210" y2="165" stroke="#88BBDD" strokeWidth="2"/>
+                <rect x="100" y="163" width="20" height="6" fill="#AAA" rx="2"/>
+                <rect x="200" y="163" width="20" height="6" fill="#AAA" rx="2"/>
+                <text x="160" y="185" textAnchor="middle" fill="#8A7A66" fontSize="10" fontFamily="Cairo,sans-serif">مثبَّتة بأقواس معدنية</text>
+              </svg>
+            ),
+          },
+          "acrylic-indoor": {
+            title: "لوحة أكريليك داخلية",
+            desc: "لوحة أكريليك شفافة أو ملونة تُثبَّت داخل المكتب أو الممر الداخلي — مضاءة من الخلف أو أمامياً، لا تظهر على الواجهة الخارجية.",
+            svg: (
+              <svg viewBox="0 0 320 200" style={{ width: "100%", maxWidth: 320 }}>
+                {/* غرفة داخلية */}
+                <rect x="20" y="20" width="280" height="165" fill="#F0EAE0" rx="6" stroke="#C8A87A" strokeWidth="1"/>
+                {/* جدار خلفي */}
+                <rect x="30" y="30" width="260" height="130" fill="#E8E0D4" rx="4"/>
+                {/* لوحة أكريليك */}
+                <rect x="70" y="55" width="180" height="75" fill="rgba(200,235,255,0.45)" stroke="#6AAAD0" strokeWidth="2" rx="6"/>
+                {/* خلفية مضيئة (backlit glow) */}
+                <rect x="74" y="59" width="172" height="67" fill="rgba(180,220,255,0.2)" rx="4"/>
+                {/* توهج خلفي */}
+                <rect x="68" y="53" width="184" height="79" fill="none" stroke="rgba(100,180,255,0.25)" strokeWidth="6" rx="8"/>
+                {/* نص اللوحة */}
+                <text x="160" y="91" textAnchor="middle" fill="#1A1208" fontSize="14" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المكتب</text>
+                <text x="160" y="110" textAnchor="middle" fill="#5A7A9A" fontSize="9" fontFamily="Cairo,sans-serif">OFFICE NAME</text>
+                {/* مسامير التثبيت */}
+                <circle cx="80" cy="65" r="3" fill="#C0C0C0" stroke="#999" strokeWidth="0.5"/>
+                <circle cx="240" cy="65" r="3" fill="#C0C0C0" stroke="#999" strokeWidth="0.5"/>
+                <circle cx="80" cy="123" r="3" fill="#C0C0C0" stroke="#999" strokeWidth="0.5"/>
+                <circle cx="240" cy="123" r="3" fill="#C0C0C0" stroke="#999" strokeWidth="0.5"/>
+                {/* الأرضية */}
+                <rect x="20" y="155" width="280" height="10" fill="#C8A87A" rx="2"/>
+                <text x="160" y="185" textAnchor="middle" fill="#8A7A66" fontSize="9" fontFamily="Cairo,sans-serif">لوحة داخلية · مثبَّتة على الجدار بمسامير معدنية</text>
+              </svg>
+            ),
+          },
+          "upper-facade": {
+            title: "لوحة على واجهة المبنى بالأدوار العليا",
+            desc: "لوحة خارجية تُثبَّت على واجهة المبنى في الدور الذي تشغله المنشأة — مشروطة باستئجار الدور بالكامل.",
+            svg: (
+              <svg viewBox="0 0 380 285" style={{ width: "100%", display: "block" }} dir="ltr">
+                {/* خلفية */}
+                <rect x="0" y="0" width="380" height="285" fill="#F5F0E8"/>
+                <rect x="5" y="5" width="370" height="275" fill="none" stroke="#C0392B" strokeWidth="1" strokeDasharray="4 3"/>
+                <text x="373" y="18" textAnchor="end" fill="#C0392B" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">لوحة واجهة الأدوار العليا</text>
+
+                {/* ── تحذير الشرط أعلى الصورة ── */}
+                <rect x="82" y="22" width="216" height="16" fill="rgba(192,57,43,0.10)" stroke="#C0392B" strokeWidth="0.8" rx="3"/>
+                <text x="190" y="33" textAnchor="middle" fill="#C0392B" fontSize="8" fontFamily="Cairo,sans-serif" fontWeight="bold">⚠ يُشترط استئجار الدور بالكامل</text>
+
+                <defs>
+                  <marker id="ufar" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#C0392B"/></marker>
+                  <marker id="ufal" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto"><polygon points="5,0 0,2.5 5,5" fill="#C0392B"/></marker>
+                </defs>
+
+                {/* ── المبنى — 5 طوابق (كل طابق 36px) تبدأ من y=48 ── */}
+                {Array.from({length: 5}, (_, i) => {
+                  const isSign = i === 2;
+                  const by = 48 + i * 36;
+                  return (
+                    <g key={`uf${i}`}>
+                      {isSign ? (
+                        /* لوحة الدور المستأجر */
+                        <rect x="80" y={by} width="220" height="9" fill="#1A1208" stroke="#C9A24B" strokeWidth="1.2"/>
+                      ) : (
+                        <rect x="80" y={by} width="220" height="5" fill="#C8A87A" stroke="#A08060" strokeWidth="0.3"/>
+                      )}
+                      {[0,1,2,3].map(w => (
+                        <rect key={w} x={85 + w * 54} y={isSign ? by + 10 : by + 6} width="46" height={isSign ? 21 : 25}
+                              fill={isSign ? "#D0E8F8" : "#9DC4D8"} stroke="#5A9AB8" strokeWidth="0.5"/>
+                      ))}
+                    </g>
+                  );
+                })}
+
+                {/* نص اللوحة (صغير) */}
+                <text x="190" y={48 + 2*36 + 6} textAnchor="middle" fill="#C9A24B" fontSize="6" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المكتب</text>
+
+                {/* قاعدة المبنى */}
+                <rect x="80" y="228" width="220" height="7" fill="#A09080" stroke="#777" strokeWidth="0.5"/>
+
+                {/* إطار الدور المستأجر */}
+                <rect x="80" y="120" width="220" height="36" fill="none" stroke="rgba(201,162,75,0.5)" strokeWidth="1" strokeDasharray="3 2"/>
+                <text x="190" y="143" textAnchor="middle" fill="#8A6A30" fontSize="7.5" fontFamily="Cairo,sans-serif">الدور المستأجر بالكامل</text>
+
+                {/* ── سهم عرض الواجهة ── */}
+                <line x1="80" y1="248" x2="300" y2="248" stroke="#C0392B" strokeWidth="0.9" markerEnd="url(#ufar)" markerStart="url(#ufal)"/>
+                <line x1="80" y1="243" x2="80" y2="253" stroke="#C0392B" strokeWidth="0.7"/>
+                <line x1="300" y1="243" x2="300" y2="253" stroke="#C0392B" strokeWidth="0.7"/>
+                <text x="190" y="262" textAnchor="middle" fill="#C0392B" fontSize="7.5" fontFamily="Cairo,sans-serif">عرض واجهة الدور المستأجر</text>
+
+                {/* ── سهم ارتفاع اللوحة ── */}
+                <line x1="65" y1="120" x2="65" y2="129" stroke="#C0392B" strokeWidth="0.9" markerEnd="url(#ufar)" markerStart="url(#ufal)"/>
+                <line x1="61" y1="120" x2="69" y2="120" stroke="#C0392B" strokeWidth="0.7"/>
+                <line x1="61" y1="129" x2="69" y2="129" stroke="#C0392B" strokeWidth="0.7"/>
+                <text x="57" y="127" textAnchor="middle" fill="#C0392B" fontSize="6.5" fontFamily="Cairo,sans-serif" transform="rotate(-90,57,127)">ارتفاع اللوحة</text>
+
+                {/* تسمية سفلية */}
+                <text x="190" y="278" textAnchor="middle" fill="#5A4A3A" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">لوحة واجهة المبنى بالأدوار العليا</text>
+              </svg>
+            ),
+          },
+          tenant: {
+            title: "لوحة قائمة بذاتها",
+            desc: "لوحة قائمة بذاتها تُثبَّت بجانب مدخل المبنى وتعرض أسماء المنشآت المستأجرة في الأدوار العلوية التي ليس لها واجهة أو نافذة عرض مباشرة على الشارع.",
+            svg: (
+              <svg viewBox="0 0 420 270" style={{ width: "100%", display: "block" }} dir="ltr">
+                {/* خلفية */}
+                <rect x="0" y="0" width="420" height="270" fill="#F5F0E8"/>
+                <rect x="5" y="5" width="410" height="260" fill="none" stroke="#C0392B" strokeWidth="1" strokeDasharray="4 3"/>
+                <text x="413" y="19" textAnchor="end" fill="#C0392B" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اللوحة القائمة بذاتها</text>
+
+                {/* ── أرضية الرصيف ── */}
+                <rect x="10" y="228" width="400" height="10" fill="#C8B89A"/>
+                <rect x="10" y="238" width="400" height="8" fill="#A89878"/>
+                {/* خطوط الرصيف */}
+                {[0,1,2,3,4,5,6,7,8,9].map(i => (
+                  <line key={i} x1={10+i*40} y1="228" x2={10+i*40} y2="246" stroke="#B8A888" strokeWidth="0.5"/>
+                ))}
+
+                {/* ── واجهة المبنى (زجاج) ── */}
+                <rect x="10" y="30" width="300" height="198" fill="#D8EAF0" stroke="#A0C0D0" strokeWidth="1"/>
+                {/* أعمدة الواجهة */}
+                <rect x="10" y="30" width="8" fill="#C0B090" height="198"/>
+                <rect x="302" y="30" width="8" fill="#C0B090" height="198"/>
+                {/* خطوط زجاج أفقية */}
+                {[0,1,2,3,4].map(i => (
+                  <line key={i} x1="18" y1={70+i*32} x2="302" y2={70+i*32} stroke="#B0CDD8" strokeWidth="0.5"/>
+                ))}
+                {/* خطوط زجاج رأسية */}
+                {[0,1,2,3,4,5].map(i => (
+                  <line key={i} x1={18+i*48} y1="30" x2={18+i*48} y2="228" stroke="#B0CDD8" strokeWidth="0.5"/>
+                ))}
+
+                {/* باب المدخل */}
+                <rect x="110" y="128" width="90" height="100" fill="#C8E0EC" stroke="#7AAABB" strokeWidth="1.2"/>
+                <line x1="155" y1="128" x2="155" y2="228" stroke="#7AAABB" strokeWidth="1"/>
+                <circle cx="148" cy="183" r="3" fill="#9A8A7A"/>
+                <circle cx="162" cy="183" r="3" fill="#9A8A7A"/>
+                <text x="155" y="118" textAnchor="middle" fill="#4A7A8A" fontSize="11" fontFamily="Cairo,sans-serif" fontWeight="bold">المـدخل</text>
+
+                {/* رقم دائرة ② */}
+                <circle cx="28" cy="42" r="9" fill="#7A5A3A"/>
+                <text x="28" y="46" textAnchor="middle" fill="#FFF" fontSize="9" fontFamily="sans-serif" fontWeight="bold">②</text>
+
+                {/* ── اللوحة القائمة بذاتها (④) ── */}
+                {/* قاعدة */}
+                <rect x="334" y="220" width="40" height="8" fill="#5A3A1A" rx="2"/>
+                <rect x="348" y="210" width="12" height="14" fill="#6A4A2A"/>
+                {/* عمود اللوحة */}
+                <rect x="340" y="50" width="28" height="165" fill="#7A4E28" rx="3"/>
+                <rect x="343" y="53" width="22" height="159" fill="#8A5E38" rx="2"/>
+                {/* خطوط عمودية للعمق */}
+                <line x1="347" y1="55" x2="347" y2="210" stroke="#6A4020" strokeWidth="0.5"/>
+                <line x1="362" y1="55" x2="362" y2="210" stroke="#9A6848" strokeWidth="0.5"/>
+                {/* لوحة المنشأة على العمود */}
+                <rect x="336" y="70" width="36" height="80" fill="#2C1E15" rx="3" stroke="#C9A24B" strokeWidth="1"/>
+                <rect x="339" y="73" width="30" height="12" fill="#C9A24B" rx="1"/>
+                <text x="354" y="82" textAnchor="middle" fill="#2C1E15" fontSize="5.5" fontFamily="Cairo,sans-serif" fontWeight="bold">الشعار</text>
+                {[0,1,2,3].map(i => (
+                  <g key={i}>
+                    <rect x="339" y={88+i*13} width="30" height="10" fill={i%2===0?"rgba(201,162,75,0.1)":"transparent"} rx="1"/>
+                    <rect x="341" y={90+i*13} width="7" height="6" fill="rgba(201,162,75,0.4)" rx="1"/>
+                    <line x1="351" y1={93+i*13} x2="367" y2={93+i*13} stroke="#C9A24B" strokeWidth="0.8"/>
+                    <line x1="351" y1={96+i*13} x2="363" y2={96+i*13} stroke="rgba(244,236,221,0.4)" strokeWidth="0.6"/>
+                  </g>
+                ))}
+
+                {/* رقم دائرة ④ */}
+                <circle cx="390" cy="42" r="9" fill="#7A5A3A"/>
+                <text x="390" y="46" textAnchor="middle" fill="#FFF" fontSize="9" fontFamily="sans-serif" fontWeight="bold">④</text>
+
+                {/* سهم يشير للعمود */}
+                <line x1="383" y1="50" x2="372" y2="62" stroke="#C0392B" strokeWidth="0.8"/>
+                <polygon points="372,62 376,55 379,63" fill="#C0392B"/>
+
+                {/* التسمية السفلية */}
+                <text x="210" y="260" textAnchor="middle" fill="#5A4A3A" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">لوحة قائمة بذاتها بجانب المدخل</text>
+              </svg>
+            ),
+          },
+          projecting: {
+            title: "متعامدة على الواجهة",
+            desc: "لوحة تبرز عمودياً من جدار الواجهة بزاوية 90°، تُقرأ من اتجاهين على طول الشارع — مثالية للمحلات في الأزقة الضيقة.",
+            svg: (
+              <svg viewBox="0 0 480 300" style={{ width: "100%", display: "block" }} dir="ltr">
+                {/* ── خلفية ورق رسم ── */}
+                <rect x="0" y="0" width="480" height="300" fill="#F5F0E8"/>
+                <rect x="6" y="6" width="468" height="288" fill="none" stroke="#C0392B" strokeWidth="1" strokeDasharray="4 3"/>
+                <text x="472" y="20" textAnchor="end" fill="#C0392B" fontSize="9" fontFamily="Cairo,sans-serif" fontWeight="bold">١:٣:٢  اللوحة المتعامدة على الواجهة</text>
+
+                {/* ── جدار الطوب ── */}
+                <rect x="15" y="28" width="160" height="230" fill="#B5856A"/>
+                {Array.from({length: 16}, (_, row) => Array.from({length: 6}, (_, col) => {
+                  const y = 30 + row * 14;
+                  const x = 16 + col * 38 - (row % 2 === 0 ? 0 : 19);
+                  if (x < 14 || x + 34 > 176) return null;
+                  return <rect key={`br${row}c${col}`} x={x} y={y} width="34" height="11" fill="#C4906A" stroke="#9A6040" strokeWidth="0.5" rx="0.3"/>;
+                }))}
+
+                {/* نوافذ علوية */}
+                <rect x="22" y="48" width="52" height="60" fill="#BDD4E8" stroke="#444" strokeWidth="0.7"/>
+                <line x1="48" y1="48" x2="48" y2="108" stroke="#444" strokeWidth="0.4"/>
+                <line x1="22" y1="78" x2="74" y2="78" stroke="#444" strokeWidth="0.4"/>
+                <rect x="88" y="48" width="52" height="60" fill="#BDD4E8" stroke="#444" strokeWidth="0.7"/>
+                <line x1="114" y1="48" x2="114" y2="108" stroke="#444" strokeWidth="0.4"/>
+                <line x1="88" y1="78" x2="140" y2="78" stroke="#444" strokeWidth="0.4"/>
+
+                {/* باب الدور الأرضي */}
+                <rect x="52" y="175" width="58" height="83" fill="#7A5A40" stroke="#444" strokeWidth="0.5"/>
+                <rect x="57" y="180" width="22" height="42" fill="#BDD4E8" stroke="#444" strokeWidth="0.4"/>
+                <rect x="85" y="180" width="22" height="42" fill="#BDD4E8" stroke="#444" strokeWidth="0.4"/>
+                <circle cx="82" cy="204" r="2.5" fill="#C9A24B"/>
+                <circle cx="89" cy="204" r="2.5" fill="#C9A24B"/>
+
+                {/* رصيف وأرضية */}
+                <rect x="0" y="258" width="480" height="12" fill="#A09080"/>
+                <rect x="0" y="270" width="480" height="8" fill="#7A6A5A"/>
+
+                {/* ══════ BRACKET & BLADE SIGN ══════ */}
+
+                {/* ══ ذراع واحدة مركزية تحمل اللوحة ══ */}
+
+                {/* الجزء الجداري (عمودي) — مثبت بالجدار */}
+                <rect x="173" y="167" width="7" height="17" fill="#686868" rx="1.5" stroke="#3A3A3A" strokeWidth="0.6"/>
+                <circle cx="176.5" cy="171" r="1.7" fill="#2A2A2A"/>
+                <circle cx="176.5" cy="180" r="1.7" fill="#2A2A2A"/>
+
+                {/* الجزء الأفقي — يمتد للخارج */}
+                <rect x="179" y="172" width="24" height="5.5" fill="#686868" rx="1.5" stroke="#3A3A3A" strokeWidth="0.6"/>
+
+                {/* رأس الذراع — نقطة ربط اللوحة */}
+                <circle cx="203" cy="174.5" r="3.5" fill="#505050" stroke="#333" strokeWidth="0.6"/>
+                <circle cx="203" cy="174.5" r="1.5" fill="#999"/>
+
+                {/* لوحة اللافتة — متناسبة مع حجم المبنى */}
+                <rect x="203" y="152" width="88" height="46" fill="#1A1208" rx="4" stroke="#3A3030" strokeWidth="1"/>
+                <rect x="207" y="156" width="80" height="38" fill="#1E1510" rx="3"/>
+                <rect x="210" y="159" width="74" height="1.8" fill="#C9A24B" opacity="0.55"/>
+                <rect x="210" y="191" width="74" height="1.8" fill="#C9A24B" opacity="0.55"/>
+                <text x="247" y="177" textAnchor="middle" fill="#C9A24B" fontSize="11" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text>
+                <text x="247" y="189" textAnchor="middle" fill="#C8C0B0" fontSize="7" fontFamily="Arial,sans-serif">ESTABLISHMENT NAME</text>
+
+                {/* ══════ INSET — مسقط أفقي ══════ */}
+                <rect x="320" y="26" width="148" height="95" fill="rgba(255,255,255,0.75)" stroke="#AAA" strokeWidth="0.6" rx="5"/>
+                <text x="394" y="40" textAnchor="middle" fill="#555" fontSize="8" fontFamily="Cairo,sans-serif" fontWeight="bold">مسقط أفقي (من الأعلى)</text>
+                {/* خط الجدار */}
+                <line x1="328" y1="75" x2="464" y2="75" stroke="#5A4A3A" strokeWidth="3"/>
+                <text x="450" y="70" textAnchor="end" fill="#5A4A3A" fontSize="7" fontFamily="Cairo,sans-serif">الجدار</text>
+                {/* ذراع الحامل */}
+                <line x1="390" y1="75" x2="390" y2="60" stroke="#686868" strokeWidth="2"/>
+                {/* اللافتة — شريط رفيع عمودي على الجدار */}
+                <rect x="387" y="54" width="5" height="21" fill="#1A1208" stroke="#C9A24B" strokeWidth="0.7"/>
+                {/* سهم البروز — يسار اللافتة */}
+                <line x1="382" y1="75" x2="382" y2="54" stroke="#C0392B" strokeWidth="0.7" markerEnd="url(#ar5b)" markerStart="url(#ar5)"/>
+                {/* ⊥ 90° — يسار اللافتة */}
+                <text x="378" y="66" textAnchor="end" fill="#C0392B" fontSize="7" fontFamily="sans-serif">⊥ 90°</text>
+                {/* سهما الاتجاهين — أسفل الجدار */}
+                <line x1="389" y1="91" x2="420" y2="91" stroke="#C0392B" strokeWidth="1" markerEnd="url(#ar6)"/>
+                <line x1="389" y1="91" x2="358" y2="91" stroke="#C0392B" strokeWidth="1" markerEnd="url(#ar6)"/>
+                <text x="389" y="110" textAnchor="middle" fill="#C0392B" fontSize="6.5" fontFamily="Cairo,sans-serif">تُقرأ من الاتجاهين</text>
+
+                {/* تعريف الأسهم */}
+                <defs>
+                  <marker id="ar3" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#C0392B"/></marker>
+                  <marker id="ar4" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#C0392B"/></marker>
+                  <marker id="ar5" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto"><polygon points="5,0 0,2.5 5,5" fill="#C0392B"/></marker>
+                  <marker id="ar5b" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#C0392B"/></marker>
+                  <marker id="ar6" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#C0392B"/></marker>
+                </defs>
+
+                {/* سهم البروز الرئيسي — من وجه الجدار لحافة اللوحة */}
+                <line x1="176" y1="242" x2="291" y2="242" stroke="#C0392B" strokeWidth="0.9" markerEnd="url(#ar6)" markerStart="url(#ar5)"/>
+                <text x="233" y="253" textAnchor="middle" fill="#C0392B" fontSize="7.5" fontFamily="Cairo,sans-serif">بروز اللافتة عن سطح الواجهة</text>
+
+                {/* التسمية السفلية */}
+                <text x="240" y="283" textAnchor="middle" fill="#333" fontSize="9" fontFamily="Cairo,sans-serif" fontWeight="bold">اللوحات المتعامدة على الواجهة</text>
+              </svg>
+            ),
+          },
+          brand: {
+            title: "علامة تجارية (أعلى المبنى)",
+            desc: "عنصر بصري يُوضع أعلى الواجهات الرئيسية للمباني متعددة الاستخدامات كالفنادق والأبراج التجارية، يعرض اسم وشعار الجهة المالكة أو المشغّلة. تُعدّ جزءًا من الهوية البصرية للمبنى وتُستخدم لتعزيز الحضور المؤسسي وتسهيل التعرف على المبنى من مسافات بعيدة.",
+            svg: (
+              <svg viewBox="0 0 480 300" style={{ width: "100%", display: "block" }} dir="ltr">
+                {/* ── خلفية ── */}
+                <rect x="0" y="0" width="480" height="300" fill="#F5F0E8"/>
+                <rect x="6" y="6" width="468" height="288" fill="none" stroke="#C0392B" strokeWidth="1" strokeDasharray="4 3"/>
+                <text x="472" y="20" textAnchor="end" fill="#C0392B" fontSize="9" fontFamily="Cairo,sans-serif" fontWeight="bold">١:٣:٥  العلامة التجارية أعلى المبنى</text>
+
+                {/* ── تعريف الأسهم ── */}
+                <defs>
+                  <marker id="brar" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#C0392B"/></marker>
+                  <marker id="bral" markerWidth="5" markerHeight="5" refX="1" refY="2.5" orient="auto"><polygon points="5,0 0,2.5 5,5" fill="#C0392B"/></marker>
+                </defs>
+
+                {/* ══ المبنى الرئيسي ══ */}
+                {/* قاعدة المبنى */}
+                <rect x="140" y="248" width="200" height="8" fill="#A09080" stroke="#777" strokeWidth="0.5"/>
+                {/* جسم المبنى — طوابق */}
+                {Array.from({length: 11}, (_, i) => (
+                  <g key={`fl${i}`}>
+                    {/* شريط هيكلي (concrete band) */}
+                    <rect x="140" y={58 + i * 17} width="200" height="4" fill="#C8A87A" stroke="#A08060" strokeWidth="0.3"/>
+                    {/* نوافذ الطابق */}
+                    {[0,1,2,3].map(w => (
+                      <rect key={w} x={145 + w * 48} y={62 + i * 17} width="42" height="13" fill="#7BBCD4" stroke="#5A9AB8" strokeWidth="0.4"/>
+                    ))}
+                  </g>
+                ))}
+                {/* الحائط الجانبي للمبنى (اللون الأساسي) */}
+                <rect x="140" y="58" width="200" height="190" fill="none" stroke="#8A7A6A" strokeWidth="1"/>
+
+                {/* ══ لوحة العلامة التجارية أعلى المبنى ══ */}
+                <rect x="140" y="40" width="200" height="20" fill="#1A1208"/>
+                <rect x="143" y="43" width="194" height="14" fill="#1E1510"/>
+                {/* ── مجموعة الشعار + اسم المنشأة (متجاورة في المنتصف) ── */}
+                {/* مربع LOGO ذهبي */}
+                <rect x="192" y="44" width="13" height="12" fill="#C9A24B" rx="1.5"/>
+                <text x="198.5" y="52.5" textAnchor="middle" fill="#1A1208" fontSize="4" fontFamily="sans-serif" fontWeight="bold">LOGO</text>
+                {/* اسم المنشأة */}
+                <text x="208" y="53" textAnchor="start" fill="#F4ECDD" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">برج الأعمال — جدة</text>
+
+                {/* ── الأشجار ── */}
+                {/* شجرة يسار */}
+                <ellipse cx="108" cy="244" rx="20" ry="16" fill="#5A8A50"/>
+                <ellipse cx="108" cy="238" rx="15" ry="12" fill="#6AAA60"/>
+                <rect x="105" y="254" width="5" height="12" fill="#7A5A3A"/>
+                {/* شجرة يمين */}
+                <ellipse cx="372" cy="244" rx="20" ry="16" fill="#5A8A50"/>
+                <ellipse cx="372" cy="238" rx="15" ry="12" fill="#6AAA60"/>
+                <rect x="369" y="254" width="5" height="12" fill="#7A5A3A"/>
+
+                {/* ── الأرض ── */}
+                <rect x="60" y="262" width="360" height="6" fill="#A09080"/>
+                <rect x="60" y="268" width="360" height="4" fill="#8A7A6A"/>
+
+                {/* ══ خطوط قياس وتعليقات ══ */}
+
+                {/* عرض المبنى — سهم أفقي أعلى */}
+                <line x1="140" y1="28" x2="340" y2="28" stroke="#C0392B" strokeWidth="0.9" markerEnd="url(#brar)" markerStart="url(#bral)"/>
+                <line x1="140" y1="24" x2="140" y2="32" stroke="#C0392B" strokeWidth="0.7"/>
+                <line x1="340" y1="24" x2="340" y2="32" stroke="#C0392B" strokeWidth="0.7"/>
+                <text x="240" y="23" textAnchor="middle" fill="#C0392B" fontSize="7.5" fontFamily="Cairo,sans-serif">عرض المبنى</text>
+
+                {/* ارتفاع اللوحة — سهم رأسي يسار */}
+                <line x1="128" y1="40" x2="128" y2="60" stroke="#C0392B" strokeWidth="0.9" markerEnd="url(#brar)" markerStart="url(#bral)"/>
+                <line x1="124" y1="40" x2="132" y2="40" stroke="#C0392B" strokeWidth="0.7"/>
+                <line x1="124" y1="60" x2="132" y2="60" stroke="#C0392B" strokeWidth="0.7"/>
+                <text x="90" y="52" textAnchor="middle" fill="#C0392B" fontSize="7" fontFamily="Cairo,sans-serif" transform="rotate(-90,90,52)">ارتفاع اللوحة</text>
+
+                {/* ارتفاع المبنى — سهم رأسي يمين */}
+                <line x1="352" y1="60" x2="352" y2="248" stroke="#C0392B" strokeWidth="0.9" markerEnd="url(#brar)" markerStart="url(#bral)"/>
+                <line x1="348" y1="60" x2="356" y2="60" stroke="#C0392B" strokeWidth="0.7"/>
+                <line x1="348" y1="248" x2="356" y2="248" stroke="#C0392B" strokeWidth="0.7"/>
+                <text x="365" y="160" fill="#C0392B" fontSize="7" fontFamily="Cairo,sans-serif" transform="rotate(90,365,160)">ارتفاع المبنى</text>
+
+                {/* خط منقط من اللوحة لليمين */}
+                <line x1="340" y1="40" x2="346" y2="40" stroke="#C0392B" strokeWidth="0.6" strokeDasharray="2 1.5"/>
+                <line x1="340" y1="60" x2="346" y2="60" stroke="#C0392B" strokeWidth="0.6" strokeDasharray="2 1.5"/>
+
+                {/* التسمية السفلية */}
+                <text x="240" y="285" textAnchor="middle" fill="#333" fontSize="9" fontFamily="Cairo,sans-serif" fontWeight="bold">العلامة التجارية أعلى الواجهة</text>
+              </svg>
+            ),
+          },
+          entrance: {
+            title: "لوحة مدخل",
+            desc: "لوحة تُثبَّت عند مدخل المبنى أو المحل، تحدد الهوية عند نقطة الدخول.",
+            svg: (
+              <svg viewBox="0 0 320 200" style={{ width: "100%", maxWidth: 320 }}>
+                <rect x="80" y="50" width="160" height="150" fill="#BCA68A" rx="4"/>
+                <rect x="120" y="90" width="80" height="110" fill="#8B6A50" rx="4"/>
+                <circle cx="160" cy="148" r="5" fill="#C9A24B"/>
+                <rect x="70" y="45" width="180" height="40" fill="#2C1E15" rx="6" stroke={GOLD} strokeWidth="1.5"/>
+                <text x="160" y="70" textAnchor="middle" fill={GOLD} fontSize="13" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text>
+                <text x="160" y="30" textAnchor="middle" fill="#8A7A66" fontSize="10" fontFamily="Cairo,sans-serif">← عند مدخل المبنى →</text>
+              </svg>
+            ),
+          },
+          directory: {
+            title: "تعريفية جامعة",
+            desc: "لوحة قائمة بذاتها تُثبَّت بجانب مدخل المبنى وتعرض أسماء ومعلومات المنشآت المستأجرة في الأدوار العلوية التي ليس لها واجهة مباشرة على الشارع — تجمع الشعار والاسم وطريقة التواصل لكل مستأجر.",
+            svg: (
+              <svg viewBox="0 0 420 270" style={{ width: "100%", display: "block" }} dir="ltr">
+                {/* خلفية */}
+                <rect x="0" y="0" width="420" height="270" fill="#F5F0E8"/>
+                <rect x="5" y="5" width="410" height="260" fill="none" stroke="#C0392B" strokeWidth="1" strokeDasharray="4 3"/>
+                <text x="413" y="19" textAnchor="end" fill="#C0392B" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">اللوحة التعريفية الجامعة</text>
+
+                {/* ── أرضية الرصيف ── */}
+                <rect x="10" y="228" width="400" height="10" fill="#C8B89A"/>
+                <rect x="10" y="238" width="400" height="8" fill="#A89878"/>
+                {[0,1,2,3,4,5,6,7,8,9].map(i => (
+                  <line key={i} x1={10+i*40} y1="228" x2={10+i*40} y2="246" stroke="#B8A888" strokeWidth="0.5"/>
+                ))}
+
+                {/* ── واجهة المبنى (زجاج) ── */}
+                <rect x="10" y="30" width="300" height="198" fill="#D8EAF0" stroke="#A0C0D0" strokeWidth="1"/>
+                <rect x="10" y="30" width="8" fill="#C0B090" height="198"/>
+                <rect x="302" y="30" width="8" fill="#C0B090" height="198"/>
+                {[0,1,2,3,4].map(i => (
+                  <line key={i} x1="18" y1={70+i*32} x2="302" y2={70+i*32} stroke="#B0CDD8" strokeWidth="0.5"/>
+                ))}
+                {[0,1,2,3,4,5].map(i => (
+                  <line key={i} x1={18+i*48} y1="30" x2={18+i*48} y2="228" stroke="#B0CDD8" strokeWidth="0.5"/>
+                ))}
+
+                {/* باب المدخل */}
+                <rect x="110" y="128" width="90" height="100" fill="#C8E0EC" stroke="#7AAABB" strokeWidth="1.2"/>
+                <line x1="155" y1="128" x2="155" y2="228" stroke="#7AAABB" strokeWidth="1"/>
+                <circle cx="148" cy="183" r="3" fill="#9A8A7A"/>
+                <circle cx="162" cy="183" r="3" fill="#9A8A7A"/>
+                <text x="155" y="118" textAnchor="middle" fill="#4A7A8A" fontSize="11" fontFamily="Cairo,sans-serif" fontWeight="bold">المـدخل</text>
+
+                {/* ── اللوحة التعريفية الجامعة (عمود قائم) ── */}
+                <rect x="334" y="220" width="40" height="8" fill="#5A3A1A" rx="2"/>
+                <rect x="348" y="210" width="12" height="14" fill="#6A4A2A"/>
+                <rect x="340" y="50" width="28" height="165" fill="#7A4E28" rx="3"/>
+                <rect x="343" y="53" width="22" height="159" fill="#8A5E38" rx="2"/>
+                <line x1="347" y1="55" x2="347" y2="210" stroke="#6A4020" strokeWidth="0.5"/>
+                <line x1="362" y1="55" x2="362" y2="210" stroke="#9A6848" strokeWidth="0.5"/>
+                {/* لوحة الاسم الرئيسية */}
+                <rect x="336" y="60" width="36" height="18" fill={GOLD} rx="2"/>
+                <text x="354" y="72" textAnchor="middle" fill="#2C1E15" fontSize="6" fontFamily="Cairo,sans-serif" fontWeight="bold">الشعار / الاسم</text>
+                {/* صفوف المستأجرين */}
+                {["المستأجر الأول","الدور الثاني","المستأجر الثالث","المستأجر الرابع"].map((txt, i) => (
+                  <g key={i}>
+                    <rect x="336" y={82+i*22} width="36" height="18" fill={i%2===0?"#2C1E15":"#3A2820"} rx="1" stroke="rgba(201,162,75,0.3)" strokeWidth="0.7"/>
+                    <rect x="338" y={84+i*22} width="7" height="6" fill="rgba(201,162,75,0.4)" rx="1"/>
+                    <line x1="348" y1={87+i*22} x2="369" y2={87+i*22} stroke="#C9A24B" strokeWidth="0.8"/>
+                    <line x1="348" y1={90+i*22} x2="366" y2={90+i*22} stroke="rgba(244,236,221,0.35)" strokeWidth="0.6"/>
+                  </g>
+                ))}
+
+                {/* التسمية السفلية */}
+                <text x="210" y="260" textAnchor="middle" fill="#5A4A3A" fontSize="8.5" fontFamily="Cairo,sans-serif" fontWeight="bold">لوحة تعريفية جامعة بجانب المدخل</text>
+              </svg>
+            ),
+          },
+          flags: {
+            title: "أعلام",
+            desc: "أعمدة أعلام تحمل شعار أو ألوان المنشأة أمام المبنى أو على واجهته.",
+            svg: (
+              <svg viewBox="0 0 320 200" style={{ width: "100%", maxWidth: 320 }}>
+                {[80,160,240].map((x,i) => (
+                  <g key={i}>
+                    <rect x={x-3} y="30" width="6" height="150" fill="#8A7A66" rx="3"/>
+                    <polygon points={`${x+3},30 ${x+3},70 ${x+50},50`} fill={i===1?GOLD:"#C9A24B"} opacity={i===1?1:0.7}/>
+                    <circle cx={x} cy="185" r="8" fill="#5A4A3A" rx="4"/>
+                  </g>
+                ))}
+                <text x="160" y="18" textAnchor="middle" fill="#8A7A66" fontSize="10" fontFamily="Cairo,sans-serif">أعمدة أعلام تحمل هوية المنشأة</text>
+              </svg>
+            ),
+          },
+          freestanding: {
+            title: "قائمة بذاتها",
+            desc: "لوحة مستقلة لا تعتمد على الجدار — تُثبَّت في الأرض أو على حامل أمام المنشأة.",
+            svg: (
+              <svg viewBox="0 0 320 200" style={{ width: "100%", maxWidth: 320 }}>
+                <rect x="90" y="40" width="140" height="100" fill="#2C1E15" rx="8" stroke={GOLD} strokeWidth="2"/>
+                <text x="160" y="85" textAnchor="middle" fill={GOLD} fontSize="14" fontFamily="Cairo,sans-serif" fontWeight="bold">اسم المنشأة</text>
+                <text x="160" y="108" textAnchor="middle" fill="#A39584" fontSize="9" fontFamily="Cairo,sans-serif">COMPANY NAME</text>
+                <rect x="148" y="140" width="24" height="40" fill="#5A4A3A" rx="3"/>
+                <rect x="100" y="178" width="120" height="10" fill="#5A4A3A" rx="3"/>
+                <text x="160" y="25" textAnchor="middle" fill="#8A7A66" fontSize="10" fontFamily="Cairo,sans-serif">لوحة مستقلة على حامل أرضي</text>
+              </svg>
+            ),
+          },
+          "hotel-overview": {
+            title: "أنواع اللوحات المسموحة — فندق / مستشفى",
+            desc: "نظرة شاملة على جميع أنواع اللوحات المسموح بها وفق اشتراطات أمانة جدة للمنشآت الفندقية والصحية.",
+            svg: (
+              <svg viewBox="0 0 560 390" style={{ width: "100%", maxWidth: 560 }} fontFamily="Cairo,sans-serif">
+                {/* خلفية */}
+                <rect width="560" height="390" fill="#FDFBF7"/>
+                <rect width="560" height="58" fill="#DDD4C4" opacity="0.6"/>
+
+                {/* ══ جسم المبنى الرئيسي x:145-385, y:14-295 ══ */}
+                {/* ظل المبنى */}
+                <rect x="150" y="20" width="240" height="278" fill="#BEB0A0" rx="3" opacity="0.4" transform="translate(4,4)"/>
+                {/* جسم المبنى */}
+                <rect x="145" y="14" width="240" height="281" fill="#C8BAA8" stroke="#A09078" strokeWidth="1.2" rx="2"/>
+
+                {/* ④ علامة تجارية — تاج المبنى */}
+                <rect x="145" y="5" width="240" height="24" fill={GOLD} rx="2"/>
+                <text x="265" y="20" textAnchor="middle" fill="#2C1E15" fontSize="9.5" fontWeight="bold">مستشفى الخليج  ·  GULF HOSPITAL</text>
+                {/* خط وصل */}
+                <line x1="388" y1="17" x2="412" y2="17" stroke={GOLD} strokeWidth="1.5"/>
+                <circle cx="420" cy="17" r="10" fill={GOLD}/>
+                <text x="420" y="21" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">④</text>
+
+                {/* ① لوحة موازية لسطح الواجهة — شريط في الأدوار العليا */}
+                <rect x="145" y="44" width="240" height="22" fill="#2C1E15" rx="1"/>
+                <text x="265" y="58" textAnchor="middle" fill={GOLD} fontSize="8.5" fontWeight="bold">مستشفى الخليج  |  GULF HOSPITAL</text>
+                {/* خط وصل */}
+                <line x1="122" y1="55" x2="144" y2="55" stroke={GOLD} strokeWidth="1.5"/>
+                <circle cx="114" cy="55" r="10" fill={GOLD}/>
+                <text x="114" y="59" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">①</text>
+
+                {/* شبكة نوافذ — 11 دور × 5 عمود */}
+                {Array.from({ length: 11 }, (_, row) =>
+                  Array.from({ length: 5 }, (_, col) => (
+                    <rect key={`w-${row}-${col}`}
+                      x={153 + col * 46} y={72 + row * 19}
+                      width={32} height={13}
+                      fill="#9AB8CC" opacity="0.65" rx="1"/>
+                  ))
+                )}
+                {/* خطوط الأدوار */}
+                {Array.from({ length: 12 }, (_, i) => (
+                  <line key={`fl-${i}`} x1="145" y1={67 + i * 19} x2="385" y2={67 + i * 19}
+                    stroke="#A09078" strokeWidth="0.5" opacity="0.45"/>
+                ))}
+
+                {/* ③ لوحة متعامدة على الواجهة (بروز من الجانب) */}
+                <rect x="385" y="108" width="52" height="22" fill="#2C1E15" stroke={GOLD} strokeWidth="1.5" rx="2"/>
+                <text x="411" y="121" textAnchor="middle" fill={GOLD} fontSize="7" fontWeight="bold">مدخل ب</text>
+                {/* ذراع التثبيت */}
+                <rect x="382" y="113" width="5" height="3" fill="#7A6A5A"/>
+                <rect x="382" y="126" width="5" height="3" fill="#7A6A5A"/>
+                {/* خط وصل */}
+                <line x1="437" y1="119" x2="456" y2="119" stroke={GOLD} strokeWidth="1.5"/>
+                <circle cx="464" cy="119" r="10" fill={GOLD}/>
+                <text x="464" y="123" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">③</text>
+
+                {/* الدور الأرضي — مدخل */}
+                <rect x="145" y="258" width="240" height="37" fill="#B0A090"/>
+                {/* الباب الرئيسي */}
+                <rect x="228" y="262" width="74" height="33" fill="#7A8BA0" rx="3 3 0 0"/>
+                <rect x="231" y="265" width="32" height="30" fill="#9ABCCC" opacity="0.75" rx="1"/>
+                <rect x="267" y="265" width="32" height="30" fill="#9ABCCC" opacity="0.75" rx="1"/>
+
+                {/* ② لوحة مدخل فوق الباب */}
+                <rect x="220" y="253" width="90" height="12" fill="#2C1E15" rx="1.5"/>
+                <text x="265" y="261.5" textAnchor="middle" fill={GOLD} fontSize="6.5" fontWeight="bold">المدخل الرئيسي · MAIN ENTRANCE</text>
+                {/* خط وصل */}
+                <line x1="310" y1="259" x2="412" y2="259" stroke={GOLD} strokeWidth="1.2" strokeDasharray="4,3"/>
+                <circle cx="420" cy="259" r="10" fill={GOLD}/>
+                <text x="420" y="263" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">②</text>
+
+                {/* ══ أرضية ══ */}
+                <rect x="0" y="295" width="560" height="70" fill="#D0C0A8"/>
+                <rect x="0" y="295" width="560" height="3" fill="#A89878"/>
+
+                {/* ⑤ لوحة تعريفية جامعة (عمود الإرشاد) يسار المبنى */}
+                {/* عمود */}
+                <rect x="90" y="205" width="36" height="90" fill="#2C1E15" rx="4"/>
+                {/* رأس العمود */}
+                <rect x="88" y="202" width="40" height="16" fill={GOLD} rx="3"/>
+                <text x="108" y="213" textAnchor="middle" fill="#2C1E15" fontSize="6.5" fontWeight="bold">المستشفى</text>
+                {/* صفوف الإرشاد */}
+                {["الطوارئ  ←", "الصيدلية ←", "الاستقبال←", "المصليات ←"].map((txt, i) => (
+                  <g key={`dir-${i}`}>
+                    <rect x="93" y={221 + i * 15} width="30" height="12" fill={i % 2 === 0 ? "#F4ECDD" : "#E8DAC0"} rx="1.5"/>
+                    <text x="108" y={230 + i * 15} textAnchor="middle" fill="#2C1E15" fontSize="5.5">{txt}</text>
+                  </g>
+                ))}
+                {/* قاعدة */}
+                <rect x="84" y="293" width="48" height="5" fill="#5A4A3A" rx="2"/>
+                {/* خط وصل */}
+                <line x1="74" y1="240" x2="89" y2="240" stroke={GOLD} strokeWidth="1.5"/>
+                <circle cx="66" cy="240" r="10" fill={GOLD}/>
+                <text x="66" y="244" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">⑤</text>
+
+                {/* ⑥ أعلام — يمين المبنى */}
+                {[{ x: 414, h: 170, c: GOLD }, { x: 436, h: 180, c: "#33261A" }, { x: 458, h: 190, c: GOLD }].map(({ x, h, c }, i) => (
+                  <g key={`flag-${i}`}>
+                    <line x1={x} y1={h} x2={x} y2="295" stroke="#8A7A66" strokeWidth="2.5"/>
+                    <polygon points={`${x},${h} ${x + 28},${h + 10} ${x},${h + 20}`} fill={c} opacity="0.9"/>
+                  </g>
+                ))}
+                {/* خط وصل ⑥ */}
+                <line x1="458" y1="172" x2="490" y2="162" stroke={GOLD} strokeWidth="1.5"/>
+                <circle cx="498" cy="158" r="10" fill={GOLD}/>
+                <text x="498" y="162" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">⑥</text>
+
+                {/* ══ مفتاح الأنواع في أسفل الصورة ══ */}
+                <rect x="6" y="312" width="548" height="72" fill="rgba(44,30,21,0.06)" rx="8"/>
+                <text x="280" y="328" textAnchor="middle" fill="#5A4A3A" fontSize="8" fontWeight="700">أنواع اللوحات المسموح بها للفندق / المستشفى</text>
+                {[
+                  { n: "①", t: "موازية للواجهة" },
+                  { n: "②", t: "لوحة مدخل" },
+                  { n: "③", t: "متعامدة (بروز)" },
+                  { n: "④", t: "علامة تجارية" },
+                  { n: "⑤", t: "تعريفية جامعة" },
+                  { n: "⑥", t: "أعلام" },
+                ].map((item, i) => (
+                  <g key={`leg-${i}`}>
+                    <circle cx={46 + i * 90} cy="345" r="10" fill={GOLD}/>
+                    <text x={46 + i * 90} y="349" textAnchor="middle" fill="#2C1E15" fontSize="9" fontWeight="900">{item.n}</text>
+                    <text x={46 + i * 90} y="364" textAnchor="middle" fill="#4A3525" fontSize="8">{item.t}</text>
+                  </g>
+                ))}
+              </svg>
+            ),
+          },
+        };
+        const info = kindInfo[signKindPreview] || { title: signKindPreview, desc: "", svg: null };
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.72)" }} onClick={() => setSignKindPreview(null)}>
+            <div style={{ background: "#F4EFE6", borderRadius: 18, overflow: "hidden", width: "min(98vw,820px)", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 40px 100px rgba(0,0,0,0.6)", border: `1.5px solid rgba(201,162,75,0.4)`, margin: "auto" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.8rem 1.2rem", background: "#2C1E15", borderBottom: `1px solid rgba(201,162,75,0.2)`, flexShrink: 0 }}>
+                <span style={{ fontFamily: "Cairo,sans-serif", fontWeight: 900, fontSize: "1rem", color: "#F4ECDD" }}>{info.title}</span>
+                <button onClick={() => setSignKindPreview(null)} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid rgba(201,162,75,0.3)", background: "rgba(201,162,75,0.08)", color: GOLD, cursor: "pointer", fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Cairo,sans-serif" }}>✕</button>
+              </div>
+              <div style={{ padding: "1.5rem 1.5rem 0.8rem", overflow: "auto", flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {info.svg}
+              </div>
+              <div style={{ padding: "0 1.5rem 1.2rem", fontFamily: "Cairo,sans-serif", fontSize: "0.85rem", color: "#4A3525", lineHeight: 1.8, textAlign: "right", flexShrink: 0 }}>
+                {info.desc}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <style dangerouslySetInnerHTML={{ __html: `@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}} input[type=range]::-webkit-slider-thumb{cursor:grab} input[type=number]::-webkit-inner-spin-button{opacity:0.4} textarea:focus,input:focus{outline:none}` }} />
+
+      {/* ─── نافذة اختيار خامة الحروف ─── */}
+      <MaterialModal
+        open={showMatModal}
+        onClose={() => setShowMatModal(false)}
+        letterTypes={letterTypes}
+        sideStyles={sideStyles}
+        fonts={matGroup === "text" ? FONTS_AR : FONTS_AR}
+        group={matGroup}
+        initial={{
+          typeId: isText ? s.typeId : s.cTypeId,
+          sideMat: isText ? s.sideMat : s.cSideMat,
+          faceColorId: isText ? s.faceColorId : s.cFaceColorId,
+          sideColorId: isText ? s.sideColorId : s.cSideColorId,
+          faceCustomColor: isText ? s.faceCustomColor : s.cFaceCustomColor,
+          sideCustomColor: isText ? s.sideCustomColor : s.cSideCustomColor,
+          faceBorder: s.faceBorder,
+          sideStyleId: s.sideStyleId,
+          uniMat: isText ? s.uniMatText : s.uniMatContent,
+          lightTypeId: s.lightTypeId,
+          lightTempId: s.lightTempId,
+          letterDepthCm: s.letterDepthCm,
+        }}
+        onApply={(sel) => {
+          if (isText) {
+            set({ typeId: sel.typeId, sideMat: sel.sideMat, faceColorId: sel.faceColorId, sideColorId: sel.sideColorId, faceCustomColor: sel.faceCustomColor, sideCustomColor: sel.sideCustomColor, faceBorder: sel.faceBorder, sideStyleId: sel.sideStyleId, uniMatText: sel.uniMat, lightTypeId: sel.lightTypeId, lightTempId: sel.lightTempId, letterDepthCm: sel.letterDepthCm });
+          } else {
+            set({ cTypeId: sel.typeId, cSideMat: sel.sideMat, cFaceColorId: sel.faceColorId, cSideColorId: sel.sideColorId, cFaceCustomColor: sel.faceCustomColor, cSideCustomColor: sel.sideCustomColor, uniMatContent: sel.uniMat });
+          }
+          setShowMatModal(false);
+        }}
+      />
     </div>
   );
 }

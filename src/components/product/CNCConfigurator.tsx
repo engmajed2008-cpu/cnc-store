@@ -403,7 +403,7 @@ function FileUpload({
         >
           {/* Upload icon */}
           <div className="w-14 h-14 rounded-2xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A24B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
@@ -502,7 +502,7 @@ function MaterialCard({
         "relative p-4 rounded-2xl border text-left w-full transition-all duration-300 group",
         isRTL ? "text-right" : "text-left",
         isSelected
-          ? "border-brand-gold bg-brand-gold/[0.08] shadow-[0_0_0_1px_rgba(201,168,76,0.3)]"
+          ? "border-brand-gold bg-brand-gold/[0.08] shadow-[0_0_0_1px_rgba(201,162,75,0.3)]"
           : "border-brand-gold/12 bg-brand-steel/40 hover:border-brand-gold/30 hover:bg-brand-steel/60"
       )}
     >
@@ -650,7 +650,7 @@ export function CNCConfigurator() {
                 className={clsx(
                   "px-4 py-2.5 rounded-xl border text-sm font-mono font-semibold transition-all duration-200",
                   thickness === mm
-                    ? "border-brand-gold bg-brand-gold/10 text-brand-gold shadow-[0_0_12px_rgba(201,168,76,0.2)]"
+                    ? "border-brand-gold bg-brand-gold/10 text-brand-gold shadow-[0_0_12px_rgba(201,162,75,0.2)]"
                     : "border-brand-gold/15 bg-brand-steel/40 text-brand-silver hover:border-brand-gold/35 hover:text-brand-off-white"
                 )}
               >
@@ -689,7 +689,7 @@ export function CNCConfigurator() {
               "flex items-center gap-4 p-3 rounded-xl bg-brand-gold/[0.05] border border-brand-gold/15 mb-5",
               isRTL ? "flex-row-reverse" : "flex-row"
             )}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A24B" strokeWidth="1.5" strokeLinecap="round">
                 <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
               </svg>
               <span className="text-brand-silver/70 text-xs">{t("areaLabel")}:</span>

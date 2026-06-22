@@ -1,10 +1,14 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { useRouter, usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { localeConfig, type Locale } from "@/lib/i18n";
 import { clsx } from "clsx";
+type Locale = "ar" | "en";
+const localeConfig = {
+  ar: { label: "العربية", dir: "rtl" as const, flag: "SA" },
+  en: { label: "English", dir: "ltr" as const, flag: "EN" },
+};
 
 interface LanguageSwitcherProps {
   variant?: "pill" | "minimal" | "dropdown";
@@ -19,15 +23,12 @@ export function LanguageSwitcher({
   const router = useRouter();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const t = useTranslations("common");
 
   const targetLocale: Locale = locale === "ar" ? "en" : "ar";
   const targetConfig = localeConfig[targetLocale];
 
   const handleSwitch = () => {
-    // Replace the current locale prefix with the target locale
     const newPath = pathname.replace(`/${locale}`, `/${targetLocale}`);
-
     startTransition(() => {
       router.push(newPath || `/${targetLocale}`);
     });
@@ -44,7 +45,6 @@ export function LanguageSwitcher({
           isPending && "opacity-50 cursor-wait",
           className
         )}
-        aria-label={t("switchLang")}
       >
         <span className="text-base">{targetConfig.flag}</span>
         <span>{targetConfig.label}</span>
@@ -62,28 +62,22 @@ export function LanguageSwitcher({
           "border border-brand-gold/25 hover:border-brand-gold/60",
           "text-brand-gold-light hover:text-brand-gold",
           "bg-brand-gold/5 hover:bg-brand-gold/10",
-          "transition-all duration-300",
-          "overflow-hidden group",
+          "transition-all duration-300 overflow-hidden group",
           isPending && "opacity-60 cursor-wait",
           className
         )}
-        aria-label={t("switchLang")}
       >
-        {/* Shimmer on hover */}
         <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-brand-gold/10 to-transparent" />
-
         <span className="text-base leading-none">{targetConfig.flag}</span>
         <span className="relative z-10">{targetConfig.label}</span>
-
-        {/* Direction indicator */}
         <span className="text-xs opacity-50 relative z-10">
-          {targetConfig.dir === "rtl" ? "←" : "→"}
+          {targetConfig.dir === "rtl" ? "<" : ">"}
         </span>
       </button>
     );
   }
 
-  // Dropdown variant (for mobile nav etc.)
+  // Dropdown variant
   return (
     <div className={clsx("relative", className)}>
       <button
@@ -97,13 +91,11 @@ export function LanguageSwitcher({
         )}
       >
         <div className="flex items-center gap-2">
-          <span className="text-lg">{localeConfig[locale].flag}</span>
           <span className="text-sm font-medium">{localeConfig[locale].label}</span>
         </div>
         <div className="flex items-center gap-1 text-brand-silver text-xs">
-          <span>→</span>
-          <span className="text-lg">{targetConfig.flag}</span>
-          <span className="font-medium">{targetConfig.label}</span>
+          <span>{targetConfig.dir === "rtl" ? "<" : ">"}</span>
+          <span className="text-sm font-medium">{targetConfig.label}</span>
         </div>
       </button>
     </div>

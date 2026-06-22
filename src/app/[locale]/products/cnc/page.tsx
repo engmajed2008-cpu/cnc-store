@@ -1,14 +1,14 @@
 import { getTranslations, getLocale } from "next-intl/server";
 import Link from "next/link";
 import { clsx } from "clsx";
-import { Navbar } from "@/components/layout/Navbar";
+import Navbar from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CNCConfigurator } from "@/components/product/CNCConfigurator";
 import type { Locale } from "@/lib/i18n";
 
 export async function generateMetadata() {
   const t = await getTranslations("cncProduct");
-  return { title: `${t("pageTitle")} | Metal Art`, description: t("pageSubtitle") };
+  return { title: `${t("pageTitle")} | ADSOUQ`, description: t("pageSubtitle") };
 }
 
 // ── FAQ data ─────────────────────────────────────────────────
@@ -110,17 +110,17 @@ async function TechSpecs({ locale }: { locale: Locale }) {
           <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
             <defs>
               <pattern id="tech-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M0 0h20v20H0z" fill="none" stroke="#C9A84C" strokeWidth=".4"/>
+                <path d="M0 0h20v20H0z" fill="none" stroke="#C9A24B" strokeWidth=".4"/>
               </pattern>
             </defs>
             <rect width="300" height="200" fill="url(#tech-grid)"/>
-            <circle cx="150" cy="100" r="50" fill="none" stroke="#C9A84C" strokeWidth="1" strokeDasharray="5 3"/>
-            <circle cx="150" cy="100" r="30" fill="none" stroke="#E8C97A" strokeWidth=".8"/>
-            <circle cx="150" cy="100" r="8" fill="#C9A84C" opacity=".5"/>
-            <line x1="100" y1="100" x2="142" y2="100" stroke="#C9A84C" strokeWidth=".8"/>
-            <line x1="158" y1="100" x2="200" y2="100" stroke="#C9A84C" strokeWidth=".8"/>
-            <line x1="150" y1="50" x2="150" y2="92" stroke="#C9A84C" strokeWidth=".8"/>
-            <line x1="150" y1="108" x2="150" y2="150" stroke="#C9A84C" strokeWidth=".8"/>
+            <circle cx="150" cy="100" r="50" fill="none" stroke="#C9A24B" strokeWidth="1" strokeDasharray="5 3"/>
+            <circle cx="150" cy="100" r="30" fill="none" stroke="#EBCB7C" strokeWidth=".8"/>
+            <circle cx="150" cy="100" r="8" fill="#C9A24B" opacity=".5"/>
+            <line x1="100" y1="100" x2="142" y2="100" stroke="#C9A24B" strokeWidth=".8"/>
+            <line x1="158" y1="100" x2="200" y2="100" stroke="#C9A24B" strokeWidth=".8"/>
+            <line x1="150" y1="50" x2="150" y2="92" stroke="#C9A24B" strokeWidth=".8"/>
+            <line x1="150" y1="108" x2="150" y2="150" stroke="#C9A24B" strokeWidth=".8"/>
           </svg>
         </div>
         <div className="relative z-10 text-center py-4">
@@ -140,8 +140,8 @@ export default async function CNCProductPage() {
 
   return (
     <>
-      <Navbar />
-      <main className="min-h-screen bg-brand-charcoal pt-20">
+      <Navbar locale={locale} />
+      <div className="min-h-screen bg-brand-charcoal pt-20">
 
         {/* ── Hero banner ── */}
         <div className="relative overflow-hidden bg-gradient-to-b from-brand-steel/60 to-brand-charcoal border-b border-brand-gold/10">
@@ -149,13 +149,13 @@ export default async function CNCProductPage() {
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
-              backgroundImage: "linear-gradient(rgba(201,168,76,1) 1px,transparent 1px),linear-gradient(90deg,rgba(201,168,76,1) 1px,transparent 1px)",
+              backgroundImage: "linear-gradient(rgba(201,162,75,1) 1px,transparent 1px),linear-gradient(90deg,rgba(201,162,75,1) 1px,transparent 1px)",
               backgroundSize: "55px 55px",
             }}
           />
           {/* Gold glow */}
           <div className="absolute top-0 right-0 w-[500px] h-[300px] opacity-[0.06] pointer-events-none"
-            style={{ background: "radial-gradient(circle,#C9A84C 0%,transparent 70%)" }} />
+            style={{ background: "radial-gradient(circle,#C9A24B 0%,transparent 70%)" }} />
 
           <div className="section-container py-12 relative z-10">
             {/* Breadcrumb */}
@@ -254,7 +254,7 @@ export default async function CNCProductPage() {
             <TechSpecs locale={locale} />
           </div>
         </div>
-      </main>
+      </div>
       <Footer />
     </>
   );

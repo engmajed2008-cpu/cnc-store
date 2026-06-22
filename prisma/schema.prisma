@@ -699,6 +699,173 @@ model SupplierProfile {
   @@map("supplier_profiles")
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  LETTER-TYPE PRESETS + SIDE-STYLE PATTERNS (خامات الحروف البارزة)
+//  تُدار من لوحة التحكم وتُقرأ ديناميكياً في أداة التصميم.
+// ═══════════════════════════════════════════════════════════════
+
+/// تركيبة خامة الوجه + خامة الجوانب للحرف البارز
+/// المسؤول يضيف / يعدّل / يوقّف كل نوع من لوحة التحكم
+model LetterType {
+  id              String   @id @default(cuid())
+  slug            String   @unique // "acrylic-alum", "stainless", "acrylic-zincor", "zincor-full", "acrylic-full"
+  nameAr          String   // "أكريليك + ألومنيوم"
+  nameEn          String   // "Acrylic + Aluminum"
+  tagAr           String   @default("") // "الأكثر مبيعاً"
+  faceMaterial    String   // "acrylic" | "stainless" | "zincor" | "aluminum"
+  sideMaterial    String   // "aluminum" | "stainless" | "acrylic" | "zincor"
+  lighting        String   @default("front") // "front" | "back" | "both" | "none"
+  rateMultiplier  Decimal  @db.Decimal(6, 4) @default(1.0000)
+  gradientCss     String   @default("")
+  availableColors String[] // ["white","black","red","blue","gold","silver"]
+  colorful        Boolean  @default(true) // false = stainless (gold/silver only)
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("letter_types")
+}
+
+/// نمط جوانب الحرف البارز — صماء أو مخرّمة بأنماط مختلفة
+/// التخريم يُتيح إضاءة خلفية تشع من فتحات الجوانب
+model SideStyle {
+  id              String   @id @default(cuid())
+  slug            String   @unique // "solid", "dots", "slots", "squares", "diamonds", "arabic"
+  nameAr          String   // "صماء"، "نقاط دائرية"
+  nameEn          String   // "Solid", "Circular Dots"
+  descriptionAr   String   @default("") // "جانب مصمت كلياً"
+  svgPatternId    String   @default("") // SVG defs ID for preview rendering
+  priceAddPercent Decimal  @db.Decimal(5, 2) @default(0) // +% on letter cost
+  metalOnly       Boolean  @default(true) // not applicable to acrylic sides
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("side_styles")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RAISED-LETTER CONFIGURATOR V2 — مصمّم الحروف البارزة الجديد
+//  تدفق 5 خطوات: نوع الإضاءة → خيارات الوجه → معدن الجوانب →
+//  إضافات اختيارية → لون الإضاءة
+// ═══════════════════════════════════════════════════════════════
+
+/// الخطوة 1: نوع الإضاءة
+model LightingType {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  nameAr        String
+  nameEn        String
+  descriptionAr String   @default("")
+  basePriceSar  Decimal  @db.Decimal(10,2) @default(0)
+  iconEmoji     String   @default("💡")
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  faceOptions FaceOption[]
+
+  @@index([isActive, sortOrder])
+  @@map("lighting_types")
+}
+
+/// الخطوة 2: خيارات الوجه
+model FaceOption {
+  id             String       @id @default(cuid())
+  lightingTypeId String
+  lightingType   LightingType @relation(fields: [lightingTypeId], references: [id], onDelete: Cascade)
+  slug           String       @unique
+  nameAr         String
+  nameEn         String
+  descriptionAr  String       @default("")
+  hasColorPicker Boolean      @default(false)
+  priceSar       Decimal      @db.Decimal(10,2) @default(0)
+  gradientCss    String       @default("")
+  iconEmoji      String       @default("🔲")
+  isActive       Boolean      @default(true)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([lightingTypeId, isActive])
+  @@map("face_options")
+}
+
+/// الخطوة 3: معدن الجوانب
+model SideMetal {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  nameAr        String
+  nameEn        String
+  descriptionAr String   @default("")
+  priceSar      Decimal  @db.Decimal(10,2) @default(0)
+  gradientCss   String   @default("")
+  iconEmoji     String   @default("🔩")
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("side_metals")
+}
+
+/// الخطوة 4: الإضافات الاختيارية (متعدد الاختيار)
+model SideAddon {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  nameAr        String
+  nameEn        String
+  descriptionAr String   @default("")
+  priceSar      Decimal  @db.Decimal(10,2) @default(0)
+  iconEmoji     String   @default("✨")
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("side_addons")
+}
+
+/// الخطوة 5: لون الإضاءة
+model LightColor {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  nameAr    String
+  nameEn    String
+  hexColor  String
+  priceSar  Decimal  @db.Decimal(10,2) @default(0)
+  isColored Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("light_colors")
+}
+
+/// قدرات الموردين على مستوى خيار المصمم
+model SupplierCapability {
+  id               String   @id @default(cuid())
+  supplierId       String
+  entityType       String   // "lighting_type"|"face_option"|"side_metal"|"side_addon"|"light_color"
+  entityId         String
+  isAvailable      Boolean  @default(true)
+  supplierPriceSar Decimal? @db.Decimal(10,2)
+  updatedAt        DateTime @updatedAt
+
+  @@unique([supplierId, entityType, entityId])
+  @@index([supplierId, isAvailable])
+  @@map("supplier_capabilities")
+}
+
 /// شروط تعهد الشركاء — ديناميكية: تُضاف وتُحذف من لوحة التحكم.
 /// تُعرض للشريك عند التسجيل ويجب الموافقة عليها (pledgeAcceptedAt في ملف الشريك).
 model PledgeTerm {

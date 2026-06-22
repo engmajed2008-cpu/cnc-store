@@ -1,140 +1,177 @@
-import { useTranslations, useLocale } from "next-intl";
-import { clsx } from "clsx";
-import { Megaphone, Palette, Cpu, Check } from "lucide-react";
-import type { Locale } from "@/lib/i18n";
+"use client";
 
-export function ServicesSection() {
-  const t = useTranslations("services");
-  const locale = useLocale() as Locale;
-  const isRTL = locale === "ar";
+import Link from "next/link";
 
-  const services = [
-    {
-      key: "advertising",
-      icon: Megaphone,
-      gradient: "from-amber-500/20 to-yellow-600/10",
-      border: "border-amber-500/20 hover:border-amber-400/50",
-      iconBg: "bg-amber-500/10",
-      iconColor: "text-amber-400",
+const G = "linear-gradient(135deg,#C9A24B,#EBCB7C)";
+const GT = { background: G, WebkitBackgroundClip: "text" as const, WebkitTextFillColor: "transparent" };
+
+const services = [
+  {
+    key: "advertising",
+    icon: "◎",
+    gradient: "linear-gradient(135deg,#120810 0%,#1e0f1a 100%)",
+    ar: {
+      name: "دعاية وإعلان",
+      desc: "لافتات، بنرات، وهويات بصرية تعبر عن علامتك التجارية بأقوى الأساليب",
+      features: ["تصميم الهوية البصرية", "اللافتات الإلكترونية", "المطبوعات الاحترافية", "الإعلانات الخارجية"],
     },
-    {
-      key: "decor",
-      icon: Palette,
-      gradient: "from-brand-gold/20 to-brand-gold-dark/10",
-      border: "border-brand-gold/20 hover:border-brand-gold/50",
-      iconBg: "bg-brand-gold/10",
-      iconColor: "text-brand-gold",
+    en: {
+      name: "Advertising",
+      desc: "Signs, banners, and visual identities that express your brand with the strongest methods",
+      features: ["Brand Identity Design", "Electronic Signs", "Professional Prints", "Outdoor Advertising"],
     },
-    {
-      key: "cnc",
-      icon: Cpu,
-      gradient: "from-zinc-400/20 to-zinc-600/10",
-      border: "border-zinc-500/20 hover:border-zinc-400/50",
-      iconBg: "bg-zinc-400/10",
-      iconColor: "text-zinc-300",
+    href: "/services/advertising",
+  },
+  {
+    key: "decor",
+    icon: "✦",
+    gradient: "linear-gradient(135deg,#F4EFE6 0%,#F4EFE6 100%)",
+    ar: {
+      name: "ديكور فني",
+      desc: "حلول ديكورية مبتكرة تمزج بين الفن الراقي والتقنية الحديثة",
+      features: ["لوحات معدنية مزخرفة", "ديكورات الجدران", "عناصر داخلية فريدة", "تشكيلات فنية مخصصة"],
     },
-  ] as const;
+    en: {
+      name: "Artistic Decor",
+      desc: "Innovative decor solutions blending high art with modern technology",
+      features: ["Ornamental Metal Panels", "Wall Decor", "Unique Interior Elements", "Custom Art Pieces"],
+    },
+    href: "/services/decor",
+  },
+  {
+    key: "cnc",
+    icon: "⚙",
+    gradient: "linear-gradient(135deg,#0a1218 0%,#0d1a24 100%)",
+    ar: {
+      name: "قص CNC",
+      desc: "قص وحفر المعادن بدقة ميكرونية باستخدام أحدث ماكينات CNC",
+      features: ["قص الألمنيوم والستيل", "الحفر ثلاثي الأبعاد", "النماذج الأولية", "الإنتاج بالجملة"],
+    },
+    en: {
+      name: "CNC Cutting",
+      desc: "Metal cutting and engraving with micrometric precision using the latest CNC machines",
+      features: ["Aluminum & Steel Cutting", "3D Engraving", "Prototyping", "Bulk Production"],
+    },
+    href: "/services/cnc",
+  },
+];
+
+function ServiceCard({ item, locale, index }: { item: typeof services[0]; locale: string; index: number }) {
+  const ar = locale === "ar";
+  const info = ar ? item.ar : item.en;
 
   return (
-    <section id="services" className="py-24 relative overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-brand-steel/30" />
+    <Link
+      href={`/${locale}${item.href}`}
+      style={{
+        display: "block",
+        borderRadius: 16,
+        overflow: "hidden",
+        border: "1px solid rgba(201,162,75,0.12)",
+        background: "#F4EFE6",
+        textDecoration: "none",
+        transition: "transform 0.3s ease, box-shadow 0.3s ease",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.transform = "translateY(-6px)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 20px 40px rgba(201,162,75,0.15)";
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(201,162,75,0.3)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "none";
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(201,162,75,0.12)";
+      }}
+    >
+      <div style={{
+        width: "100%",
+        height: 160,
+        background: item.gradient,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: "linear-gradient(rgba(201,162,75,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(201,162,75,0.04) 1px,transparent 1px)",
+          backgroundSize: "30px 30px",
+        }} />
+        <span style={{ fontSize: "3rem", color: "rgba(201,162,75,0.6)", position: "relative", zIndex: 1 }}>
+          {item.icon}
+        </span>
+        <span style={{
+          position: "absolute", top: "1rem",
+          ...(ar ? { left: "1rem" } : { right: "1rem" }),
+          fontSize: "2.5rem", fontWeight: 900,
+          color: "rgba(201,162,75,0.08)", fontFamily: "monospace",
+        }}>
+          0{index + 1}
+        </span>
+      </div>
 
-      <div className="section-container relative z-10">
-        {/* Section header */}
-        <div
-          className={clsx(
-            "mb-16",
-            isRTL ? "text-right" : "text-left"
-          )}
-        >
-          <span className="inline-block text-brand-gold text-sm font-medium uppercase tracking-[0.2em] mb-4 opacity-80">
-            {isRTL ? "ماذا نقدم" : "What We Offer"}
-          </span>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-brand-off-white mb-4">
-            {t("title")}
-          </h2>
-          <p className="text-brand-silver text-lg max-w-xl">
-            {t("subtitle")}
-          </p>
-
-          {/* Decorative gold bar */}
-          <div
-            className={clsx(
-              "mt-6 h-0.5 w-24 bg-gold-gradient",
-              isRTL ? "ms-auto" : ""
-            )}
-          />
-        </div>
-
-        {/* Service cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {services.map(({ key, icon: Icon, gradient, border, iconBg, iconColor }, idx) => (
-            <div
-              key={key}
-              className={clsx(
-                "group relative glass-card p-8 cursor-default",
-                "transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-brand-gold/5",
-                border,
-                isRTL ? "text-right" : "text-left"
-              )}
-              style={{ animationDelay: `${idx * 0.15}s` }}
-            >
-              {/* Gradient background on hover */}
-              <div
-                className={clsx(
-                  "absolute inset-0 rounded-2xl bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500",
-                  gradient
-                )}
-              />
-
-              {/* Index number */}
-              <span className="absolute top-6 end-6 text-6xl font-black text-brand-gold/5 group-hover:text-brand-gold/10 transition-all duration-500 font-mono">
-                0{idx + 1}
+      <div style={{ padding: "1.5rem", background: "#F4EFE6" }}>
+        <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#2C1E15", margin: "0 0 0.5rem 0" }}>
+          {info.name}
+        </h3>
+        <p style={{ fontSize: "0.82rem", color: "#909090", lineHeight: 1.7, margin: "0 0 1rem 0" }}>
+          {info.desc}
+        </p>
+        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1.25rem 0", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          {info.features.map((f) => (
+            <li key={f} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8rem", color: "#888",
+              flexDirection: ar ? "row-reverse" : "row" }}>
+              <span style={{ width: 14, height: 14, borderRadius: "50%", background: "rgba(201,162,75,0.15)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5L4 7L8 3" stroke="#C9A24B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </span>
+              {f}
+            </li>
+          ))}
+        </ul>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", color: "#C9A24B", fontSize: "0.8rem", fontWeight: 600 }}>
+          {ar ? "اعرف المزيد" : "Learn More"}
+        </div>
+      </div>
+    </Link>
+  );
+}
 
-              <div className="relative z-10 space-y-5">
-                {/* Icon */}
-                <div
-                  className={clsx(
-                    "w-14 h-14 rounded-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110",
-                    iconBg
-                  )}
-                >
-                  <Icon size={26} className={iconColor} />
-                </div>
+export function ServicesSection({ locale }: { locale?: string }) {
+  const loc = locale ?? "ar";
+  const ar = loc === "ar";
 
-                {/* Title */}
-                <h3 className="text-xl font-bold text-brand-off-white">
-                  {t(`${key}.title` as any)}
-                </h3>
-
-                {/* Description */}
-                <p className="text-brand-silver text-sm leading-relaxed">
-                  {t(`${key}.description` as any)}
-                </p>
-
-                {/* Features list */}
-                <ul className="space-y-2.5">
-                  {(t.raw(`${key}.features`) as string[]).map(
-                    (feature: string) => (
-                      <li
-                        key={feature}
-                        className={clsx(
-                          "flex items-center gap-2.5 text-sm text-brand-silver",
-                          isRTL ? "flex-row-reverse" : "flex-row"
-                        )}
-                      >
-                        <span className="w-4 h-4 rounded-full bg-brand-gold/15 flex items-center justify-center flex-shrink-0">
-                          <Check size={10} className="text-brand-gold" />
-                        </span>
-                        {feature}
-                      </li>
-                    )
-                  )}
-                </ul>
-              </div>
+  return (
+    <section
+      dir={ar ? "rtl" : "ltr"}
+      style={{ padding: "5rem 2.5rem", background: "#FDFBF7", fontFamily: "Tajawal, Cairo, sans-serif", borderTop: "1px solid rgba(201,162,75,0.08)" }}
+    >
+      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <div style={{ marginBottom: "3rem", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+          <div>
+            <div style={{ color: "#C9A24B", fontSize: "0.7rem", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "0.6rem" }}>
+              {ar ? "ما نقدمه" : "What We Offer"}
             </div>
+            <h2 style={{ fontSize: "clamp(1.6rem,3.5vw,2.4rem)", fontWeight: 800, color: "#2C1E15", margin: 0, lineHeight: 1.2 }}>
+              {ar ? "خدماتنا " : "Our "}
+              <span style={{ ...GT }}>{ar ? "الرئيسية" : "Services"}</span>
+            </h2>
+          </div>
+          <Link href={`/${loc}/services`} style={{
+            padding: "0.6rem 1.4rem", borderRadius: 999,
+            border: "1.5px solid rgba(201,162,75,0.3)",
+            color: "#C9A24B", fontSize: "0.82rem", fontWeight: 600, textDecoration: "none",
+          }}>
+            {ar ? "عرض الكل" : "View All"}
+          </Link>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "1.25rem" }}>
+          {services.map((s, i) => (
+            <ServiceCard key={s.key} item={s} locale={loc} index={i} />
           ))}
         </div>
       </div>

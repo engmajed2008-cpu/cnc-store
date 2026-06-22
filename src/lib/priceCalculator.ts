@@ -36,7 +36,7 @@ export const MATERIAL_RATES: Record<string, {
     cuttingMultiplier: 1.1,
     minOrderSAR: 100,
     thicknessOptions: [2, 3, 4, 5, 6],
-    color: "#C9A84C",
+    color: "#C9A24B",
     icon: "🏗️",
   },
   wood: {

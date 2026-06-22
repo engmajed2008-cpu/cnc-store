@@ -1,0 +1,23 @@
+import { setRequestLocale } from "next-intl/server";
+import dynamic from "next/dynamic";
+
+const HeroSlider = dynamic(() => import("@/components/sections/HeroSlider"), { ssr: false });
+
+const HeroSection = dynamic(
+  () => import("@/components/sections/HeroSection").then((m) => ({ default: m.HeroSection })),
+  { ssr: false }
+);
+
+const ProductsServicesSection = dynamic(() => import("@/components/sections/ProductsServicesSection"), { ssr: false });
+
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  return (
+    <>
+      <HeroSlider locale={locale} />
+      <HeroSection />
+      <ProductsServicesSection locale={locale} />
+    </>
+  );
+}

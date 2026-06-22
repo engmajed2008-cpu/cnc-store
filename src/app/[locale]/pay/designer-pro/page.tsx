@@ -82,8 +82,8 @@ export default function DesignerProPayPage() {
   }, [moyasarReady, authChecked, moyasarKey, back, ar]);
 
   function unlockPro() {
-    sessionStorage.setItem("e3lani_plan", "pro");
-    sessionStorage.setItem("e3lani_revisions", "3");
+    localStorage.setItem("e3lani_plan", "pro");
+    localStorage.setItem("e3lani_revisions", "3");
     setPaid(true);
     setTimeout(() => window.location.replace(back), 1800);
   }
