@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 
@@ -12,9 +10,21 @@ const FALLBACK = [
   { slug: "arabic",   nameAr: "نمط عربي",      nameEn: "Arabic Pattern",  descriptionAr: "زخرفة عربية أصيلة — ضوء دافئ ومتوهج",   svgPatternId: "pat-arabic", priceAddPercent: 15, metalOnly: true, sortOrder: 5 },
 ];
 
+const CACHE = new Map<string, { data: unknown; ts: number }>();
+const TTL = 5 * 60 * 1000;
+
 export async function GET() {
+  const cached = CACHE.get("side-styles");
+  if (cached && Date.now() - cached.ts < TTL) {
+    return NextResponse.json(cached.data, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+    });
+  }
   try {
-    const rows = await prisma.sideStyle.findMany({
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timeout")), 4000)
+    );
+    const query = prisma.sideStyle.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
       select: {
@@ -22,9 +32,15 @@ export async function GET() {
         svgPatternId: true, priceAddPercent: true, metalOnly: true, sortOrder: true,
       },
     });
-    const data = rows.map(r => ({ ...r, priceAddPercent: Number(r.priceAddPercent) }));
-    return NextResponse.json({ sideStyles: data });
+    const rows = await Promise.race([query, timeout]);
+    const data = { sideStyles: rows.map(r => ({ ...r, priceAddPercent: Number(r.priceAddPercent) })) };
+    CACHE.set("side-styles", { data, ts: Date.now() });
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+    });
   } catch {
-    return NextResponse.json({ sideStyles: FALLBACK });
+    return NextResponse.json({ sideStyles: FALLBACK }, {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
   }
 }

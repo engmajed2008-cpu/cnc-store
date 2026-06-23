@@ -6,18 +6,30 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const CACHE = new Map<string, { data: unknown; ts: number }>();
+const TTL = 5 * 60 * 1000;
+
 // GET /api/site-config?key=slides
 export async function GET(req: NextRequest) {
   const key = new URL(req.url).searchParams.get("key");
+  const cacheKey = key ?? "__all__";
+
+  const cached = CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.ts < TTL) {
+    return NextResponse.json(cached.data, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+    });
+  }
+
   if (!key) {
-    // Return all config
-    const { data, error } = await supabase
-      .from("site_config")
-      .select("key, value");
+    const { data, error } = await supabase.from("site_config").select("key, value");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const result: Record<string, unknown> = {};
     (data ?? []).forEach(row => { result[row.key] = row.value; });
-    return NextResponse.json(result);
+    CACHE.set(cacheKey, { data: result, ts: Date.now() });
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+    });
   }
 
   const { data, error } = await supabase
@@ -30,7 +42,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ value: data?.value ?? null });
+  const result = { value: data?.value ?? null };
+  CACHE.set(cacheKey, { data: result, ts: Date.now() });
+  return NextResponse.json(result, {
+    headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+  });
 }
 
 // POST /api/site-config  body: { key, value }

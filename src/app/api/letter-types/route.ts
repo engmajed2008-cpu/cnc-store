@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 
@@ -11,9 +9,21 @@ const FALLBACK = [
   { slug: "acrylic-full",   nameAr: "أكريليك شامل",       nameEn: "Full Acrylic",       tagAr: "توهج كامل",     faceMaterial: "acrylic",   sideMaterial: "acrylic",  lighting: "both", rateMultiplier: 0.75, gradientCss: "linear-gradient(135deg,#ffe0a0,#fff4d0,#ffd060)", availableColors: ["white","black","red","blue","green","gold","copper","silver"], colorful: true, sortOrder: 4 },
 ];
 
+const CACHE = new Map<string, { data: unknown; ts: number }>();
+const TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function GET() {
+  const cached = CACHE.get("letter-types");
+  if (cached && Date.now() - cached.ts < TTL) {
+    return NextResponse.json(cached.data, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+    });
+  }
   try {
-    const rows = await prisma.letterType.findMany({
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timeout")), 4000)
+    );
+    const query = prisma.letterType.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
       select: {
@@ -23,9 +33,15 @@ export async function GET() {
         colorful: true, sortOrder: true,
       },
     });
-    const data = rows.map(r => ({ ...r, rateMultiplier: Number(r.rateMultiplier) }));
-    return NextResponse.json({ letterTypes: data });
+    const rows = await Promise.race([query, timeout]);
+    const data = { letterTypes: rows.map(r => ({ ...r, rateMultiplier: Number(r.rateMultiplier) })) };
+    CACHE.set("letter-types", { data, ts: Date.now() });
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" },
+    });
   } catch {
-    return NextResponse.json({ letterTypes: FALLBACK });
+    return NextResponse.json({ letterTypes: FALLBACK }, {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
   }
 }
