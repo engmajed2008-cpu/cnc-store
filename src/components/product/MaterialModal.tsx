@@ -56,18 +56,63 @@ type Props = {
 };
 
 const MAT_AR: Record<string, string> = { acrylic: "أكريليك", stainless: "إستانلس", zincor: "زنكور", aluminum: "ألومنيوم" };
-const LIGHT_HINT: Record<string, string> = { front: "💡 أمامية", back: "💡 خلفية", both: "💡 مزدوجة", none: "بدون إضاءة" };
 
-const LIGHT_TYPES = [
-  { id: "none",   label: "بدون",    hint: "حروف صماء",      icon: "○" },
-  { id: "front",  label: "أمامية",  hint: "الوجه مضيء",     icon: "◐" },
-  { id: "back",   label: "خلفية",   hint: "هالة خلف الحرف", icon: "◉" },
-  { id: "double", label: "مزدوجة",  hint: "أمامية + خلفية", icon: "●" },
-];
 const LIGHT_TEMPS = [
   { id: "warm",    label: "أصفر دافئ",  glow: "#FFC65C" },
   { id: "neutral", label: "أبيض طبيعي", glow: "#FFE9C7" },
   { id: "cool",    label: "أبيض بارد",  glow: "#CFE6FF" },
+];
+
+// الأنواع الخمسة للوحات حسب الإضاءة
+type PanelType = {
+  id: string; nameAr: string; descAr: string; tags: string[];
+  gradient: string; lightTypeId: string;
+  typeId: string; sideMat: string; uniMat: boolean;
+  faceColorId: string; sideColorId: string;
+  availableColors: string[];
+};
+
+const PANEL_TYPES: PanelType[] = [
+  {
+    id: "front-lit", nameAr: "إضاءة أمامية", descAr: "الوجه الأمامي للحرف مضيء — يخرج الضوء من الوجه",
+    tags: ["وجه أكريليك", "جوانب معدنية", "ضوء أمامي"],
+    gradient: "linear-gradient(135deg,#0d1b2e 0%,#1a4a8a 50%,#6ab0f5 100%)",
+    lightTypeId: "front", typeId: "acrylic", sideMat: "aluminum", uniMat: false,
+    faceColorId: "white", sideColorId: "silver",
+    availableColors: ["white","black","red","blue","green","gold","copper","silver"],
+  },
+  {
+    id: "back-lit", nameAr: "إضاءة خلفية", descAr: "هالة ضوئية خلف الحرف — الضوء يخرج من الخلف",
+    tags: ["هالة خلفية", "جوانب زنكور", "وجه معدن"],
+    gradient: "linear-gradient(135deg,#1a0800,#8B4513 50%,#FFB347 100%)",
+    lightTypeId: "back", typeId: "zincor", sideMat: "zincor", uniMat: true,
+    faceColorId: "gold", sideColorId: "gold",
+    availableColors: ["gold","silver","copper","white","black"],
+  },
+  {
+    id: "side-lit", nameAr: "إضاءة جانبية", descAr: "الضوء يخرج من جوانب الحرف — تأثير هالة معدنية",
+    tags: ["جوانب مخصصة", "وجه معدن", "ضوء جانبي"],
+    gradient: "linear-gradient(135deg,#001a00,#1a5c1a 50%,#5cdb5c 100%)",
+    lightTypeId: "front", typeId: "acrylic", sideMat: "stainless", uniMat: false,
+    faceColorId: "white", sideColorId: "silver",
+    availableColors: ["white","silver","gold","black","red","blue"],
+  },
+  {
+    id: "non-lit", nameAr: "بدون إضاءة", descAr: "حروف صمّاء — تعمل بالضوء الطبيعي",
+    tags: ["إستانلس", "ألومنيوم", "زنكور", "بلا كهرباء"],
+    gradient: "linear-gradient(135deg,#2a2a2a,#5a5a5a 50%,#9a9a9a 100%)",
+    lightTypeId: "none", typeId: "stainless", sideMat: "stainless", uniMat: true,
+    faceColorId: "silver", sideColorId: "silver",
+    availableColors: ["silver","gold","black","white","copper"],
+  },
+  {
+    id: "mix-lit", nameAr: "إضاءة مختلطة", descAr: "أمامية + خلفية معاً — توهج من كل الاتجاهات",
+    tags: ["توهج كامل", "أمامية + خلفية"],
+    gradient: "linear-gradient(135deg,#1a0033,#6a0dad 50%,#d896ff 100%)",
+    lightTypeId: "double", typeId: "acrylic", sideMat: "acrylic", uniMat: true,
+    faceColorId: "white", sideColorId: "white",
+    availableColors: ["white","gold","red","blue","green","copper"],
+  },
 ];
 
 const DEFAULT_WORD = "إعلاني";
@@ -79,21 +124,47 @@ const depthBtn: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
 };
 
+// map lightTypeId → panelType id (best guess for initial)
+function derivePanelId(s: MaterialSelection): string {
+  if (s.lightTypeId === "none")   return "non-lit";
+  if (s.lightTypeId === "back")   return "back-lit";
+  if (s.lightTypeId === "double") return "mix-lit";
+  if (s.lightTypeId === "front")  return s.sideMat === "stainless" ? "side-lit" : "front-lit";
+  return "";
+}
+
 export default function MaterialModal({ open, onClose, onApply, letterTypes, sideStyles, fonts, initial, group }: Props) {
   const [sel, setSel] = useState<MaterialSelection>(initial);
+  const [panelTypeId, setPanelTypeId] = useState<string>(() => derivePanelId(initial));
   const [previewText, setPreviewText] = useState(DEFAULT_WORD);
   const [fontId, setFontId] = useState(fonts[0]?.id || "cairo");
   const [nightView, setNightView] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (open) setSel(initial); }, [open, initial]);
+  useEffect(() => {
+    if (open) {
+      setSel(initial);
+      setPanelTypeId(derivePanelId(initial));
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = useCallback((p: Partial<MaterialSelection>) => setSel(prev => ({ ...prev, ...p })), []);
 
+  const selectPanelType = useCallback((pt: PanelType) => {
+    setPanelTypeId(pt.id);
+    patch({
+      typeId: pt.typeId, sideMat: pt.sideMat, uniMat: pt.uniMat,
+      lightTypeId: pt.lightTypeId, faceColorId: pt.faceColorId,
+      sideColorId: pt.sideColorId, faceCustomColor: "", sideCustomColor: "",
+      faceBorder: false,
+      sideStyleId: pt.lightTypeId === "none" ? "solid" : sel.sideStyleId,
+    });
+  }, [patch, sel.sideStyleId]);
+
   if (!open) return null;
 
-  const activeLT = letterTypes.find(lt => lt.faceMaterial === sel.typeId && lt.sideMaterial === sel.sideMat);
-  const colors = activeLT?.availableColors ?? ["gold", "silver", "white", "black"];
+  const activePT = PANEL_TYPES.find(pt => pt.id === panelTypeId);
+  const colors = activePT?.availableColors ?? ["gold", "silver", "white", "black"];
   const isMetalSide = sel.sideMat !== "acrylic";
   const hasLighting = sel.lightTypeId !== "none";
   const showSideStyles = isMetalSide && hasLighting;
@@ -235,58 +306,62 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
           <div ref={scrollRef} style={{
             flex: "1 1 300px", padding: "1rem 1.2rem",
             display: "flex", flexDirection: "column", gap: "1rem",
+            overflowY: "auto",
           }}>
-            {/* 1. نوع الحرف */}
-            <Section title="نوع الحرف البارز" icon="✦">
+
+            {/* 1. نوع اللوحة — الخمسة الكروت الرئيسية */}
+            <Section title="نوع اللوحة" icon="✦">
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {letterTypes.map(lt => {
-                  const on = sel.typeId === lt.faceMaterial && sel.sideMat === lt.sideMaterial;
+                {PANEL_TYPES.map(pt => {
+                  const on = panelTypeId === pt.id;
                   return (
-                    <button key={lt.slug} onClick={() => {
-                      const newUni = lt.faceMaterial === lt.sideMaterial;
-                      patch({
-                        typeId: lt.faceMaterial, sideMat: lt.sideMaterial,
-                        faceColorId: lt.availableColors[0] || "white",
-                        sideColorId: lt.availableColors[0] || "white",
-                        faceCustomColor: "", sideCustomColor: "",
-                        uniMat: newUni, faceBorder: false,
-                        sideStyleId: lt.sideMaterial === "acrylic" ? "solid" : sel.sideStyleId,
-                      });
-                    }} style={{
+                    <button key={pt.id} onClick={() => selectPanelType(pt)} style={{
                       display: "flex", alignItems: "stretch", borderRadius: 13, overflow: "hidden",
                       cursor: "pointer", padding: 0, textAlign: "right",
                       border: `2px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
                       background: on ? "rgba(201,162,75,0.07)" : "#F4EFE6",
-                      boxShadow: on ? `0 0 16px rgba(201,162,75,0.2)` : "0 1px 3px rgba(0,0,0,0.04)",
+                      boxShadow: on ? `0 0 18px rgba(201,162,75,0.25)` : "0 1px 3px rgba(0,0,0,0.04)",
                       transition: "all 0.2s",
                     }}>
+                      {/* شريط اللون */}
                       <div style={{
-                        width: 56, flexShrink: 0,
-                        background: lt.gradientCss || "linear-gradient(135deg,#888,#aaa)",
+                        width: 52, flexShrink: 0,
+                        background: pt.gradient,
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         <span style={{
-                          fontFamily: "Cairo,sans-serif", fontWeight: 900, fontSize: "1.2rem",
-                          color: "rgba(255,255,255,0.85)", textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                          fontFamily: "Cairo,sans-serif", fontWeight: 900, fontSize: "1.1rem",
+                          color: "rgba(255,255,255,0.9)", textShadow: "0 1px 6px rgba(0,0,0,0.5)",
                         }}>أ</span>
                       </div>
-                      <div style={{ flex: 1, padding: "0.55rem 0.7rem", minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 800, fontSize: "0.8rem", color: on ? GOLD : "#2C1E15" }}>{lt.nameAr}</span>
-                          {lt.tagAr && (
-                            <span style={{
-                              fontSize: "0.56rem", padding: "1px 7px", borderRadius: 8,
-                              background: on ? "rgba(201,162,75,0.18)" : "rgba(154,106,42,0.08)",
-                              color: GOLD, fontWeight: 700,
-                            }}>{lt.tagAr}</span>
-                          )}
+                      {/* النص */}
+                      <div style={{ flex: 1, padding: "0.5rem 0.7rem", minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.82rem", color: on ? GOLD : "#2C1E15", marginBottom: 2 }}>
+                          {pt.nameAr}
                         </div>
-                        <div style={{ fontSize: "0.62rem", color: "#634E40", marginTop: 3, lineHeight: 1.5 }}>
-                          وجه: <b>{MAT_AR[lt.faceMaterial] || lt.faceMaterial}</b> · جوانب: <b>{MAT_AR[lt.sideMaterial] || lt.sideMaterial}</b> · {LIGHT_HINT[lt.lighting] || lt.lighting}
+                        <div style={{ fontSize: "0.6rem", color: "#634E40", lineHeight: 1.5, marginBottom: 4 }}>
+                          {pt.descAr}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {pt.tags.map(tag => (
+                            <span key={tag} style={{
+                              fontSize: "0.54rem", padding: "1px 6px", borderRadius: 6,
+                              background: on ? "rgba(201,162,75,0.2)" : "rgba(154,106,42,0.07)",
+                              color: on ? GOLD : "#9A7A46", fontWeight: 700,
+                            }}>{tag}</span>
+                          ))}
                         </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", padding: "0 0.65rem", flexShrink: 0 }}>
-                        <span style={{ fontSize: "0.62rem", color: "#9A6A2A", fontWeight: 700 }}>×{lt.rateMultiplier.toFixed(2)}</span>
+                      {/* مؤشر الاختيار */}
+                      <div style={{ display: "flex", alignItems: "center", padding: "0 0.7rem", flexShrink: 0 }}>
+                        <span style={{
+                          width: 18, height: 18, borderRadius: "50%",
+                          border: `2px solid ${on ? GOLD : "rgba(154,106,42,0.25)"}`,
+                          background: on ? GOLD : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {on && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2C1E15" }} />}
+                        </span>
                       </div>
                     </button>
                   );
@@ -294,76 +369,55 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
               </div>
             </Section>
 
-            {/* 2. الألوان */}
-            <Section title="لون الحرف" icon="🎨">
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
-                <div>
-                  <div style={{ fontSize: "0.65rem", color: "#634E40", fontWeight: 700, marginBottom: "0.3rem" }}>
-                    {sel.uniMat ? "لون الحرف (وجه + جوانب)" : "لون الوجه"}
-                  </div>
-                  <ColorRow
-                    colors={colors}
-                    selectedId={sel.faceCustomColor ? "" : sel.faceColorId}
-                    customHex={sel.faceCustomColor}
-                    allowCustom={activeLT?.colorful !== false}
-                    onPickPreset={id => patch(sel.uniMat
-                      ? { faceColorId: id, faceCustomColor: "", sideColorId: id, sideCustomColor: "" }
-                      : { faceColorId: id, faceCustomColor: "" })}
-                    onPickCustom={h => patch(sel.uniMat
-                      ? { faceCustomColor: h, sideCustomColor: h }
-                      : { faceCustomColor: h })}
-                  />
-                </div>
+            {/* الخيارات التفصيلية — تظهر فقط بعد اختيار النوع */}
+            {activePT && (<>
 
-                {!sel.uniMat && (
+              {/* 2. لون الحرف */}
+              <Section title="لون الحرف" icon="🎨">
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
                   <div>
-                    <div style={{ fontSize: "0.65rem", color: "#634E40", fontWeight: 700, marginBottom: "0.3rem" }}>لون الجوانب</div>
+                    <div style={{ fontSize: "0.65rem", color: "#634E40", fontWeight: 700, marginBottom: "0.3rem" }}>
+                      {sel.uniMat ? "لون الحرف (وجه + جوانب)" : "لون الوجه"}
+                    </div>
                     <ColorRow
                       colors={colors}
-                      selectedId={sel.sideCustomColor ? "" : sel.sideColorId}
-                      customHex={sel.sideCustomColor}
+                      selectedId={sel.faceCustomColor ? "" : sel.faceColorId}
+                      customHex={sel.faceCustomColor}
                       allowCustom={true}
-                      onPickPreset={id => patch({ sideColorId: id, sideCustomColor: "" })}
-                      onPickCustom={h => patch({ sideCustomColor: h })}
+                      onPickPreset={id => patch(sel.uniMat
+                        ? { faceColorId: id, faceCustomColor: "", sideColorId: id, sideCustomColor: "" }
+                        : { faceColorId: id, faceCustomColor: "" })}
+                      onPickCustom={h => patch(sel.uniMat
+                        ? { faceCustomColor: h, sideCustomColor: h }
+                        : { faceCustomColor: h })}
                     />
                   </div>
-                )}
-              </div>
-            </Section>
+                  {!sel.uniMat && (
+                    <div>
+                      <div style={{ fontSize: "0.65rem", color: "#634E40", fontWeight: 700, marginBottom: "0.3rem" }}>لون الجوانب</div>
+                      <ColorRow
+                        colors={colors}
+                        selectedId={sel.sideCustomColor ? "" : sel.sideColorId}
+                        customHex={sel.sideCustomColor}
+                        allowCustom={true}
+                        onPickPreset={id => patch({ sideColorId: id, sideCustomColor: "" })}
+                        onPickCustom={h => patch({ sideCustomColor: h })}
+                      />
+                    </div>
+                  )}
+                </div>
+              </Section>
 
-            {/* 3. الإضاءة */}
-            <Section title="نوع الإضاءة" icon="💡">
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.4rem" }}>
-                {LIGHT_TYPES.map(lt => {
-                  const on = sel.lightTypeId === lt.id;
-                  return (
-                    <button key={lt.id} onClick={() => patch({
-                      lightTypeId: lt.id,
-                      sideStyleId: lt.id === "none" ? "solid" : sel.sideStyleId,
-                    })} title={lt.hint} style={{
-                      textAlign: "center", padding: "0.5rem 0.25rem", borderRadius: 10, cursor: "pointer",
-                      fontFamily: "Tajawal, Cairo, sans-serif",
-                      border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
-                      background: on ? "rgba(201,162,75,0.08)" : "#F4EFE6",
-                      boxShadow: on ? `0 0 10px rgba(201,162,75,0.15)` : "none",
-                    }}>
-                      <div style={{ fontSize: "1rem", marginBottom: 2, color: on ? GOLD : "#8A7A66" }}>{lt.icon}</div>
-                      <div style={{ fontSize: "0.62rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{lt.label}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* درجة حرارة اللون — تظهر عند تفعيل الإضاءة */}
+              {/* 3. درجة حرارة الإضاءة — للأنواع المضيئة فقط */}
               {hasLighting && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  <div style={{ fontSize: "0.6rem", color: "#8A7A66", marginBottom: "0.3rem" }}>درجة لون الإضاءة</div>
+                <Section title="درجة لون الإضاءة" icon="💡">
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.4rem" }}>
                     {LIGHT_TEMPS.map(t => {
                       const on = sel.lightTempId === t.id;
                       return (
                         <button key={t.id} onClick={() => patch({ lightTempId: t.id })} style={{
                           display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                          padding: "0.4rem 0.3rem", borderRadius: 9, cursor: "pointer",
+                          padding: "0.45rem 0.3rem", borderRadius: 9, cursor: "pointer",
                           fontFamily: "Tajawal, Cairo, sans-serif", fontSize: "0.62rem", fontWeight: 700,
                           border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
                           background: on ? "rgba(201,162,75,0.08)" : "#F4EFE6",
@@ -375,108 +429,125 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
                       );
                     })}
                   </div>
-                </div>
+                </Section>
               )}
-            </Section>
 
-            {/* 4. مقاسات الحرف — بروز/عمق الحرف */}
-            <Section title="مقاسات الحرف" icon="📐">
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "0.5rem 0.7rem", borderRadius: 10, background: "#F4EFE6",
-                border: "1px solid rgba(154,106,42,0.15)",
-              }}>
-                <div>
-                  <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#2C1E15" }}>بروز الحرف (العمق)</div>
-                  <div style={{ fontSize: "0.6rem", color: "#634E40" }}>سُمك الحرف البارز عن سطح اللوحة</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <button onClick={() => patch({ letterDepthCm: Math.max(2, sel.letterDepthCm - 1) })} style={depthBtn}>−</button>
-                  <span style={{ minWidth: 54, textAlign: "center", fontWeight: 900, fontSize: "0.9rem", color: GOLD }}>
-                    {sel.letterDepthCm} <span style={{ fontSize: "0.6rem", color: "#8A7A66" }}>سم</span>
-                  </span>
-                  <button onClick={() => patch({ letterDepthCm: Math.min(25, sel.letterDepthCm + 1) })} style={depthBtn}>+</button>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "0.35rem", marginTop: "0.45rem" }}>
-                {[3, 5, 8, 12].map(v => {
-                  const on = sel.letterDepthCm === v;
-                  return (
-                    <button key={v} onClick={() => patch({ letterDepthCm: v })} style={{
-                      flex: 1, padding: "0.35rem", borderRadius: 8, cursor: "pointer",
-                      fontFamily: "Tajawal, Cairo, sans-serif", fontSize: "0.68rem", fontWeight: 700,
-                      border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
-                      background: on ? "rgba(201,162,75,0.08)" : "#F4EFE6",
-                      color: on ? GOLD : "#634E40",
-                    }}>{v} سم</button>
-                  );
-                })}
-              </div>
-            </Section>
-
-            {/* 5. كنتور */}
-            {group === "text" && !sel.uniMat && frameEligible && (
-              <Section title="كنتور حول الأحرف" icon="⬡">
-                <label style={{
-                  display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer",
-                  padding: "0.6rem 0.7rem", borderRadius: 10,
-                  background: sel.faceBorder ? "rgba(201,162,75,0.08)" : "#F4EFE6",
-                  border: `1.5px solid ${sel.faceBorder ? GOLD + "55" : "rgba(154,106,42,0.15)"}`,
-                }}>
-                  <input type="checkbox" checked={sel.faceBorder}
-                    onChange={e => patch({ faceBorder: e.target.checked })}
-                    style={{ accentColor: GOLD, width: 17, height: 17 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#2C1E15" }}>إضافة كنتور</div>
-                    <div style={{ fontSize: "0.6rem", color: "#634E40", display: "flex", alignItems: "center", gap: 5 }}>
-                      حدّ يتبع شكل كل حرف بخامة ولون الجوانب
-                      <span style={{ width: 13, height: 13, borderRadius: 3, background: sideHex, border: "1px solid rgba(154,106,42,0.3)", display: "inline-block", flexShrink: 0 }} />
-                    </div>
+              {/* 4. خامة الجوانب — لأنواع معينة */}
+              {!sel.uniMat && (
+                <Section title="خامة الجوانب" icon="🔩">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.4rem" }}>
+                    {(["aluminum","stainless","zincor"] as const).map(mat => {
+                      const on = sel.sideMat === mat;
+                      const labels: Record<string, string> = { aluminum: "ألومنيوم", stainless: "إستانلس", zincor: "زنكور" };
+                      return (
+                        <button key={mat} onClick={() => patch({ sideMat: mat })} style={{
+                          padding: "0.45rem", borderRadius: 9, cursor: "pointer",
+                          fontFamily: "Tajawal, Cairo, sans-serif", fontSize: "0.7rem", fontWeight: 700,
+                          border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
+                          background: on ? "rgba(201,162,75,0.08)" : "#F4EFE6",
+                          color: on ? GOLD : "#2C1E15",
+                        }}>{labels[mat]}</button>
+                      );
+                    })}
                   </div>
-                </label>
-              </Section>
-            )}
+                </Section>
+              )}
 
-            {/* 6. نمط الجوانب (تخريم) */}
-            {showSideStyles && (
-              <Section title="نمط الجوانب (تخريم)" icon="◈">
-                <div style={{ fontSize: "0.6rem", color: "#8A7A66", marginBottom: "0.5rem", lineHeight: 1.6 }}>
-                  التخريم يُتيح للضوء الداخلي الإشعاع من الجوانب — مُتاح للجوانب المعدنية مع الإضاءة
+              {/* 5. مقاسات الحرف */}
+              <Section title="بروز الحرف (العمق)" icon="📐">
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "0.5rem 0.7rem", borderRadius: 10, background: "#F4EFE6",
+                  border: "1px solid rgba(154,106,42,0.15)", marginBottom: "0.45rem",
+                }}>
+                  <div style={{ fontSize: "0.6rem", color: "#634E40" }}>سُمك الحرف البارز عن سطح اللوحة</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <button onClick={() => patch({ letterDepthCm: Math.max(2, sel.letterDepthCm - 1) })} style={depthBtn}>−</button>
+                    <span style={{ minWidth: 54, textAlign: "center", fontWeight: 900, fontSize: "0.9rem", color: GOLD }}>
+                      {sel.letterDepthCm} <span style={{ fontSize: "0.6rem", color: "#8A7A66" }}>سم</span>
+                    </span>
+                    <button onClick={() => patch({ letterDepthCm: Math.min(25, sel.letterDepthCm + 1) })} style={depthBtn}>+</button>
+                  </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.45rem" }}>
-                  {sideStyles.map(ss => {
-                    const on = sel.sideStyleId === ss.slug;
+                <div style={{ display: "flex", gap: "0.35rem" }}>
+                  {[3, 5, 8, 12].map(v => {
+                    const on = sel.letterDepthCm === v;
                     return (
-                      <button key={ss.slug} onClick={() => patch({ sideStyleId: ss.slug })} style={{
-                        textAlign: "center", padding: "0.55rem 0.35rem", borderRadius: 10, cursor: "pointer",
-                        fontFamily: "Tajawal, Cairo, sans-serif",
+                      <button key={v} onClick={() => patch({ letterDepthCm: v })} style={{
+                        flex: 1, padding: "0.35rem", borderRadius: 8, cursor: "pointer",
+                        fontFamily: "Tajawal, Cairo, sans-serif", fontSize: "0.68rem", fontWeight: 700,
                         border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
                         background: on ? "rgba(201,162,75,0.08)" : "#F4EFE6",
-                        boxShadow: on ? `0 0 10px rgba(201,162,75,0.15)` : "none",
-                      }}>
-                        <div style={{ fontSize: "1.15rem", marginBottom: 3, color: on ? GOLD : "#5A4A3A" }}>{ss.icon}</div>
-                        <div style={{ fontSize: "0.66rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{ss.nameAr}</div>
-                        {ss.priceAddPercent > 0 && (
-                          <div style={{ fontSize: "0.56rem", color: "#B07820", marginTop: 2 }}>+{ss.priceAddPercent}%</div>
-                        )}
-                      </button>
+                        color: on ? GOLD : "#634E40",
+                      }}>{v} سم</button>
                     );
                   })}
                 </div>
-                {activeSS && activeSS.slug !== "solid" && (
-                  <div style={{
-                    marginTop: "0.45rem", padding: "0.45rem 0.65rem", borderRadius: 9,
-                    background: "rgba(201,162,75,0.06)", border: "1px solid rgba(201,162,75,0.12)",
-                    fontSize: "0.62rem", color: "#634E40", lineHeight: 1.5,
-                  }}>
-                    {activeSS.descriptionAr}
-                    {activeSS.priceAddPercent > 0 && (
-                      <span style={{ color: "#B07820", fontWeight: 700 }}> · +{activeSS.priceAddPercent}% على تكلفة الحروف</span>
-                    )}
-                  </div>
-                )}
               </Section>
+
+              {/* 6. كنتور */}
+              {group === "text" && !sel.uniMat && frameEligible && (
+                <Section title="كنتور حول الأحرف" icon="⬡">
+                  <label style={{
+                    display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer",
+                    padding: "0.6rem 0.7rem", borderRadius: 10,
+                    background: sel.faceBorder ? "rgba(201,162,75,0.08)" : "#F4EFE6",
+                    border: `1.5px solid ${sel.faceBorder ? GOLD + "55" : "rgba(154,106,42,0.15)"}`,
+                  }}>
+                    <input type="checkbox" checked={sel.faceBorder}
+                      onChange={e => patch({ faceBorder: e.target.checked })}
+                      style={{ accentColor: GOLD, width: 17, height: 17 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#2C1E15" }}>إضافة كنتور</div>
+                      <div style={{ fontSize: "0.6rem", color: "#634E40" }}>
+                        حدّ يتبع شكل كل حرف بخامة ولون الجوانب
+                      </div>
+                    </div>
+                  </label>
+                </Section>
+              )}
+
+              {/* 7. نمط الجوانب (تخريم) */}
+              {showSideStyles && (
+                <Section title="نمط الجوانب (تخريم)" icon="◈">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.45rem" }}>
+                    {sideStyles.map(ss => {
+                      const on = sel.sideStyleId === ss.slug;
+                      return (
+                        <button key={ss.slug} onClick={() => patch({ sideStyleId: ss.slug })} style={{
+                          textAlign: "center", padding: "0.55rem 0.35rem", borderRadius: 10, cursor: "pointer",
+                          fontFamily: "Tajawal, Cairo, sans-serif",
+                          border: `1.5px solid ${on ? GOLD : "rgba(154,106,42,0.15)"}`,
+                          background: on ? "rgba(201,162,75,0.08)" : "#F4EFE6",
+                          boxShadow: on ? `0 0 10px rgba(201,162,75,0.15)` : "none",
+                        }}>
+                          <div style={{ fontSize: "1.15rem", marginBottom: 3, color: on ? GOLD : "#5A4A3A" }}>{ss.icon}</div>
+                          <div style={{ fontSize: "0.66rem", fontWeight: 800, color: on ? GOLD : "#2C1E15" }}>{ss.nameAr}</div>
+                          {ss.priceAddPercent > 0 && (
+                            <div style={{ fontSize: "0.56rem", color: "#B07820", marginTop: 2 }}>+{ss.priceAddPercent}%</div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Section>
+              )}
+            </>)}
+
+            {/* رسالة الانتظار — قبل الاختيار */}
+            {!activePT && (
+              <div style={{
+                textAlign: "center", padding: "2rem 1rem", color: "#9A7A46",
+                fontSize: "0.75rem", lineHeight: 2,
+              }}>
+                <div style={{ fontSize: "2rem", marginBottom: 8 }}>☝️</div>
+                اختر نوع اللوحة أعلاه<br />
+                <span style={{ fontSize: "0.65rem", color: "#B0956B" }}>
+                  ستظهر خيارات الألوان والمقاسات بعد الاختيار
+                </span>
+              </div>
             )}
+
           </div>
         </div>
 
@@ -487,14 +558,14 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
         }}>
           <div style={{ fontSize: "0.65rem", color: "#634E40", lineHeight: 1.5 }}>
-            {activeLT && <><b style={{ color: "#2C1E15" }}>{activeLT.nameAr}</b> · </>}
+            {activePT && <><b style={{ color: "#2C1E15" }}>{activePT.nameAr}</b> · </>}
             <span style={{ color: faceHex === sideHex ? faceHex : undefined }}>
               {sel.faceCustomColor ? "لون مخصص" : COL[sel.faceColorId]?.label || sel.faceColorId}
             </span>
             {!sel.uniMat && faceHex !== sideHex && (
               <> / جوانب: <span style={{ color: sideHex }}>{sel.sideCustomColor ? "مخصص" : COL[sel.sideColorId]?.label || sel.sideColorId}</span></>
             )}
-            {hasLighting && ` · ${LIGHT_TYPES.find(l => l.id === sel.lightTypeId)?.label} 💡`}
+            {hasLighting && ` · ${activePT?.nameAr ?? ""} 💡`}
             {sel.faceBorder && frameEligible && " · كنتور"}
             {activeSS && activeSS.slug !== "solid" && showSideStyles && ` · ${activeSS.nameAr}`}
           </div>
