@@ -124,6 +124,13 @@ const depthBtn: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
 };
 
+const zoomBtn: React.CSSProperties = {
+  width: 22, height: 22, borderRadius: 6, cursor: "pointer",
+  border: "1px solid rgba(201,162,75,0.3)", background: "rgba(255,255,255,0.08)",
+  color: "#F4ECDD", fontSize: "0.85rem", fontWeight: 900, lineHeight: 1,
+  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+};
+
 // map lightTypeId → panelType id (best guess for initial)
 function derivePanelId(s: MaterialSelection): string {
   if (s.lightTypeId === "none")   return "non-lit";
@@ -139,6 +146,9 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
   const [previewText, setPreviewText] = useState(DEFAULT_WORD);
   const [fontId, setFontId] = useState(fonts[0]?.id || "cairo");
   const [nightView, setNightView] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewStretchX, setPreviewStretchX] = useState(100);
+  const [previewStretchY, setPreviewStretchY] = useState(100);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -460,6 +470,12 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
                 glowHex={glowHex}
                 depthCm={sel.letterDepthCm}
                 nightView={nightView}
+                zoom={previewZoom}
+                stretchX={previewStretchX}
+                stretchY={previewStretchY}
+                onZoomChange={setPreviewZoom}
+                onStretchXChange={setPreviewStretchX}
+                onStretchYChange={setPreviewStretchY}
               />
             </div>
 
@@ -514,11 +530,48 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
                 ))}
               </select>
             </div>
+            {/* أشرطة التحكم: حجم + مد أفقي + مد رأسي */}
             <div style={{
-              padding: "0.3rem", textAlign: "center", fontSize: "0.58rem",
-              color: "rgba(201,162,75,0.55)", background: "rgba(0,0,0,0.25)",
+              padding: "0.5rem 0.75rem", background: "rgba(0,0,0,0.3)",
+              borderTop: "1px solid rgba(201,162,75,0.12)",
+              display: "flex", flexDirection: "column", gap: "0.35rem",
             }}>
-              🖱️ اسحب لتدوير النموذج — اكتب كلمتك وجرّب الخطوط والإضاءة
+              {/* حجم الحرف */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.6rem", color: "rgba(201,162,75,0.8)", fontWeight: 700, minWidth: 60, textAlign: "right" }}>حجم الحرف</span>
+                <button onClick={() => setPreviewZoom(z => Math.max(0.4, +(z - 0.1).toFixed(1)))} style={zoomBtn}>−</button>
+                <input type="range" min={40} max={240} step={5} value={Math.round(previewZoom * 100)}
+                  onChange={e => setPreviewZoom(+e.target.value / 100)}
+                  style={{ flex: 1, accentColor: GOLD, cursor: "pointer", height: 4 }} />
+                <button onClick={() => setPreviewZoom(z => Math.min(2.4, +(z + 0.1).toFixed(1)))} style={zoomBtn}>+</button>
+                <span style={{ fontSize: "0.62rem", color: GOLD, fontWeight: 800, minWidth: 32, textAlign: "center" }}>{Math.round(previewZoom * 100)}%</span>
+                <button onClick={() => { setPreviewZoom(1); setPreviewStretchX(100); setPreviewStretchY(100); }} title="إعادة تعيين" style={{ ...zoomBtn, fontSize: "0.7rem" }}>↺</button>
+              </div>
+              {/* مد أفقي */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.6rem", color: "rgba(201,162,75,0.8)", fontWeight: 700, minWidth: 60, textAlign: "right" }}>مد أفقي</span>
+                <button onClick={() => setPreviewStretchX(x => Math.max(40, x - 5))} style={zoomBtn}>−</button>
+                <input type="range" min={40} max={200} step={5} value={previewStretchX}
+                  onChange={e => setPreviewStretchX(+e.target.value)}
+                  style={{ flex: 1, accentColor: GOLD, cursor: "pointer", height: 4 }} />
+                <button onClick={() => setPreviewStretchX(x => Math.min(200, x + 5))} style={zoomBtn}>+</button>
+                <span style={{ fontSize: "0.62rem", color: GOLD, fontWeight: 800, minWidth: 32, textAlign: "center" }}>{previewStretchX}%</span>
+                <div style={{ width: 24 }} />
+              </div>
+              {/* مد رأسي */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.6rem", color: "rgba(201,162,75,0.8)", fontWeight: 700, minWidth: 60, textAlign: "right" }}>مد رأسي</span>
+                <button onClick={() => setPreviewStretchY(y => Math.max(40, y - 5))} style={zoomBtn}>−</button>
+                <input type="range" min={40} max={200} step={5} value={previewStretchY}
+                  onChange={e => setPreviewStretchY(+e.target.value)}
+                  style={{ flex: 1, accentColor: GOLD, cursor: "pointer", height: 4 }} />
+                <button onClick={() => setPreviewStretchY(y => Math.min(200, y + 5))} style={zoomBtn}>+</button>
+                <span style={{ fontSize: "0.62rem", color: GOLD, fontWeight: 800, minWidth: 32, textAlign: "center" }}>{previewStretchY}%</span>
+                <div style={{ width: 24 }} />
+              </div>
+              <div style={{ textAlign: "center", fontSize: "0.54rem", color: "rgba(201,162,75,0.4)", marginTop: 1 }}>
+                🖱️ اسحب لتدوير · عجلة الماوس للتكبير
+              </div>
             </div>
           </div>
 
@@ -630,18 +683,22 @@ function perfIntensity(slug: string, i: number, n: number): number {
 /* ─── Realistic 3D extruded text preview (pure CSS 3D) ───
    يبني الحرف البارز بتكديس نسخ من النص في عمق Z (الجوانب) مع وجه معدني/زجاجي واقعي،
    ويُظهر التخريم كضوء يشعّ من الجوانب بنمط الاختيار، ووضع ليلي لمعاينة الإنارة. */
-function Letter3DText({ text, fontFamily, faceHex, sideHex, faceMaterial, faceBorder, sideStyleSlug, lightTypeId, glowHex, depthCm, nightView }: {
+function Letter3DText({ text, fontFamily, faceHex, sideHex, faceMaterial, faceBorder, sideStyleSlug, lightTypeId, glowHex, depthCm, nightView, zoom, stretchX, stretchY, onZoomChange, onStretchXChange, onStretchYChange }: {
   text: string; fontFamily: string; faceHex: string; sideHex: string; faceMaterial: string;
   faceBorder: boolean; sideStyleSlug: string; lightTypeId: string; glowHex: string;
   depthCm: number; nightView: boolean;
+  zoom: number; stretchX: number; stretchY: number;
+  onZoomChange: (v: number) => void; onStretchXChange: (v: number) => void; onStretchYChange: (v: number) => void;
 }) {
+  const setZoom = onZoomChange;
+  const setStretchX = onStretchXChange;
+  const setStretchY = onStretchYChange;
   const [rotY, setRotY] = useState(-40);
   const [rotX, setRotX] = useState(-16);
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
   const [fontSize, setFontSize] = useState(64);
-  const [zoom, setZoom] = useState(1);
 
   // ملاءمة حجم الخط لعرض المنطقة وطول الكلمة
   useLayoutEffect(() => {
@@ -665,8 +722,18 @@ function Letter3DText({ text, fontFamily, faceHex, sideHex, faceMaterial, faceBo
     last.current = { x: e.clientX, y: e.clientY };
   }, []);
   const onUp = useCallback(() => { dragging.current = false; }, []);
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    setZoom(z => Math.max(0.5, Math.min(2.4, z - e.deltaY * 0.0015)));
+
+  // منع scroll الصفحة عند استخدام عجلة الماوس فوق المعاينة
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setZoom(z => Math.max(0.5, Math.min(2.4, z - e.deltaY * 0.0015)));
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
   }, []);
 
   const hasGlow = lightTypeId !== "none";
@@ -713,7 +780,6 @@ function Letter3DText({ text, fontFamily, faceHex, sideHex, faceMaterial, faceBo
     <div
       ref={wrapRef}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}
-      onWheel={onWheel}
       style={{
         position: "relative",
         width: "100%", height: "100%", cursor: dragging.current ? "grabbing" : "grab",
@@ -721,26 +787,11 @@ function Letter3DText({ text, fontFamily, faceHex, sideHex, faceMaterial, faceBo
         perspective: 1100, userSelect: "none", touchAction: "none",
       }}
     >
-      {/* أزرار تكبير/تصغير الكلمة */}
-      <div style={{
-        position: "absolute", bottom: 10, insetInlineEnd: 10, zIndex: 4,
-        display: "flex", flexDirection: "column", gap: 6,
-      }}>
-        {[["+", () => setZoom(z => Math.min(2.4, z + 0.2))], ["−", () => setZoom(z => Math.max(0.5, z - 0.2))], ["⤢", () => setZoom(1)]].map(([lbl, fn], i) => (
-          <button key={i} onClick={fn as () => void} title={i === 2 ? "إعادة الحجم" : "تكبير/تصغير"} style={{
-            width: 30, height: 30, borderRadius: 8, cursor: "pointer",
-            border: "1px solid rgba(201,162,75,0.3)", background: "rgba(0,0,0,0.5)",
-            color: "#F4ECDD", fontSize: i === 2 ? "0.8rem" : "1.1rem", fontWeight: 800, lineHeight: 1,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}>{lbl as string}</button>
-        ))}
-      </div>
 
       <div style={{
         position: "relative", width: "85%", height: "70%",
         transformStyle: "preserve-3d",
-        transform: `scale(${zoom}) rotateX(${rotX}deg) rotateY(${rotY}deg)`,
+        transform: `scale(${zoom}) scaleX(${stretchX / 100}) scaleY(${stretchY / 100}) rotateX(${rotX}deg) rotateY(${rotY}deg)`,
         transition: dragging.current ? "none" : "transform 0.25s ease-out",
       }}>
         {/* هالة خلفية — طبقتان ليلاً (خارجية ناعمة + داخلية مركّزة) لعمق الهالة الواقعي */}
