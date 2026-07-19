@@ -48,7 +48,7 @@ export function Navbar() {
             </div>
             <div className="leading-tight">
               <span className="block text-[1.05rem] font-black text-gold-gradient">
-                {isRTL ? "ميتال آرت" : "Metal Art"}
+                {isRTL ? "إعلاني" : "E3lani"}
               </span>
               <span className="block text-[9px] text-brand-silver tracking-[0.16em] uppercase font-mono">
                 {isRTL ? "قص CNC احترافي" : "Pro CNC Cutting"}

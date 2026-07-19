@@ -8,7 +8,7 @@ import type { Locale } from "@/lib/i18n";
 
 export async function generateMetadata() {
   const t = await getTranslations("cncProduct");
-  return { title: `${t("pageTitle")} | Metal Art`, description: t("pageSubtitle") };
+  return { title: `${t("pageTitle")} | E3lani`, description: t("pageSubtitle") };
 }
 
 // ── FAQ data ─────────────────────────────────────────────────

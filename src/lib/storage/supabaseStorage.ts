@@ -15,19 +15,34 @@ import { createClient } from "@supabase/supabase-js";
 // ─────────────────────────────────────────────────────────────
 // Client singleton (service-role key — server-side only)
 // ─────────────────────────────────────────────────────────────
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // NEVER expose this to client
-  { auth: { persistSession: false } }
-);
+let _supabaseAdmin: ReturnType<typeof createClient> | null = null;
+function getSupabaseAdmin() {
+  if (!_supabaseAdmin) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY; // NEVER expose this to client
+    if (!url || !key) {
+      throw new Error("Supabase is not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+    }
+    _supabaseAdmin = createClient(url, key, { auth: { persistSession: false } });
+  }
+  return _supabaseAdmin;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Public client (anon key — safe for client components)
 // ─────────────────────────────────────────────────────────────
-export const supabasePublic = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+let _supabasePublic: ReturnType<typeof createClient> | null = null;
+export function getSupabasePublic() {
+  if (!_supabasePublic) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      throw new Error("Supabase is not configured: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    }
+    _supabasePublic = createClient(url, key);
+  }
+  return _supabasePublic;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -73,7 +88,7 @@ export async function uploadProductImage(
   const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
   const storagePath = `${productId}/${uniqueName}`;
 
-  const { error } = await supabaseAdmin.storage
+  const { error } = await getSupabaseAdmin().storage
     .from(BUCKETS.PRODUCTS)
     .upload(storagePath, file, {
       contentType: mimeType,
@@ -83,7 +98,7 @@ export async function uploadProductImage(
 
   if (error) throw new Error(`Supabase upload failed: ${error.message}`);
 
-  const { data } = supabaseAdmin.storage
+  const { data } = getSupabaseAdmin().storage
     .from(BUCKETS.PRODUCTS)
     .getPublicUrl(storagePath);
 
@@ -102,14 +117,14 @@ export async function uploadOrderDesignFile(
   const sanitized   = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
   const storagePath = `${orderId}/${Date.now()}-${sanitized}`;
 
-  const { error } = await supabaseAdmin.storage
+  const { error } = await getSupabaseAdmin().storage
     .from(BUCKETS.ORDERS)
     .upload(storagePath, file, { contentType: mimeType, upsert: false });
 
   if (error) throw new Error(`Design file upload failed: ${error.message}`);
 
   // Generate a 24h signed URL for internal use
-  const { data: signedData, error: signErr } = await supabaseAdmin.storage
+  const { data: signedData, error: signErr } = await getSupabaseAdmin().storage
     .from(BUCKETS.ORDERS)
     .createSignedUrl(storagePath, 86400);
 
@@ -125,7 +140,7 @@ export async function deleteStorageFile(
   bucket: string,
   storagePath: string
 ): Promise<void> {
-  const { error } = await supabaseAdmin.storage
+  const { error } = await getSupabaseAdmin().storage
     .from(bucket)
     .remove([storagePath]);
   if (error) throw new Error(`Delete failed: ${error.message}`);
@@ -139,7 +154,7 @@ export async function getSignedUrl(
   storagePath: string,
   expiresInSeconds = 3600
 ): Promise<string> {
-  const { data, error } = await supabaseAdmin.storage
+  const { data, error } = await getSupabaseAdmin().storage
     .from(bucket)
     .createSignedUrl(storagePath, expiresInSeconds);
   if (error) throw new Error(`Signed URL error: ${error.message}`);

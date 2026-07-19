@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Cart Store — Metal Art
+ * Cart Store — E3lani
  * Pure React context + localStorage persistence, no extra dependencies.
  * Each item carries the full PriceInput + computed PriceBreakdown.
  */
@@ -188,7 +188,7 @@ interface CartContextValue {
 
 export const CartContext = createContext<CartContextValue | null>(null);
 
-const STORAGE_KEY = "metalart_cart_v1";
+const STORAGE_KEY = "e3lani_cart_v1";
 const KNOWN_COUPONS: Record<string, number> = {
   "WELCOME10": 0.10,
   "METAL15":   0.15,

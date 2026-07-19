@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# Metal Art — deploy.sh
+# E3lani — deploy.sh
 # Run on your STC Cloud VM:  bash deploy.sh
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
@@ -29,4 +29,4 @@ echo "▶ [7/7] Pruning old images..."
 docker image prune -f --filter "until=24h"
 
 echo ""
-echo "✅ Deployment complete! Site: https://metalart.sa"
+echo "✅ Deployment complete! Site: https://e3lani.com"

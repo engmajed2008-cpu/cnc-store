@@ -17,9 +17,9 @@ async function main() {
   console.log("🌱 Seeding database...\n");
 
   // ── 1. Admin user ──────────────────────────────────────────
-  const adminEmail    = process.env.SEED_ADMIN_EMAIL    ?? "admin@metalart.sa";
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "MetalArt@2024!";
-  const adminName     = process.env.SEED_ADMIN_NAME     ?? "Metal Art Admin";
+  const adminEmail    = process.env.SEED_ADMIN_EMAIL    ?? "admin@e3lani.com";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "E3lani@2024!";
+  const adminName     = process.env.SEED_ADMIN_NAME     ?? "E3lani Admin";
 
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
