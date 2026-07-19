@@ -128,7 +128,7 @@ export default function HomePage({ params }: { params: { locale: string } }) {
             <div style={{ position: "absolute", inset: 10, background: G, borderRadius: 2, transform: "rotate(45deg)" }} />
           </div>
           <div>
-            <div style={{ fontWeight: 900, fontSize: "1.05rem", ...GT }}>{ar ? "ميتال آرت" : "Metal Art"}</div>
+            <div style={{ fontWeight: 900, fontSize: "1.05rem", ...GT }}>{ar ? "إعلاني" : "E3lani"}</div>
             <div style={{ fontSize: "0.58rem", color: "#555", letterSpacing: "0.15em", textTransform: "uppercase" as const }}>Pro CNC Cutting</div>
           </div>
         </div>
@@ -281,7 +281,7 @@ export default function HomePage({ params }: { params: { locale: string } }) {
 
       {/* ══ FOOTER ══ */}
       <footer style={{ padding: "2rem", textAlign: "center", borderTop: "1px solid rgba(201,168,76,0.1)", color: "#555", fontSize: "0.85rem" }}>
-        © 2025 {ar ? "ميتال آرت — جميع الحقوق محفوظة" : "Metal Art — All rights reserved"}
+        © 2025 {ar ? "إعلاني — جميع الحقوق محفوظة" : "E3lani — All rights reserved"}
       </footer>
 
     </div>

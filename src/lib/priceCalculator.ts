@@ -1,5 +1,5 @@
 /**
- * CNC Price Calculator — Metal Art
+ * CNC Price Calculator — E3lani
  * All prices in SAR. USD conversion rate: 1 USD = 3.75 SAR
  */
 

@@ -545,7 +545,7 @@ export default function CheckoutPageClient() {
                     <div className="font-mono text-xs space-y-1.5 text-brand-off-white/80">
                       <p>{isRTL ? "البنك:" : "Bank:"} <span className="text-brand-gold">المصرف الأهلي السعودي (NCB)</span></p>
                       <p>IBAN: <span className="text-brand-gold">SA00 0000 0000 0000 0000 0000</span></p>
-                      <p>{isRTL ? "المستفيد:" : "Beneficiary:"} <span className="text-brand-gold">{isRTL ? "شركة ميتال آرت" : "Metal Art Company"}</span></p>
+                      <p>{isRTL ? "المستفيد:" : "Beneficiary:"} <span className="text-brand-gold">{isRTL ? "شركة إعلاني" : "E3lani Company"}</span></p>
                     </div>
                   </div>
                 )}

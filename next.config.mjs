@@ -13,7 +13,7 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "cdn.metalart.sa" },
+      { protocol: "https", hostname: "cdn.e3lani.com" },
     ],
     // Serve WebP/AVIF automatically
     formats: ["image/avif", "image/webp"],
