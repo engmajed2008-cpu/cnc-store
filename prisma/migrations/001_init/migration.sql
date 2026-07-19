@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════
--- Metal Art — 001_init.sql
+-- E3lani — 001_init.sql
 -- Full schema + seed data for pricing engine
 -- Apply via: npx prisma migrate dev --name init
 -- ═══════════════════════════════════════════════════════════════

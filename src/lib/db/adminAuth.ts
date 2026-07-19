@@ -15,7 +15,7 @@ import crypto from "crypto";
 import prisma from "./prisma";
 
 const JWT_SECRET = process.env.ADMIN_JWT_SECRET ?? "change-me-in-production";
-const COOKIE_NAME = "metalart_admin";
+const COOKIE_NAME = "e3lani_admin";
 const SESSION_HOURS = 8;
 
 // ─────────────────────────────────────────────────────────────

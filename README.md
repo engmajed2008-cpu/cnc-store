@@ -1,4 +1,4 @@
-# ميتال آرت | Metal Art — متجر CNC الإلكتروني
+# إعلاني | E3lani — متجر CNC الإلكتروني
 
 > متجر إلكتروني احترافي لخدمات قص المعادن CNC، الديكور، واللوحات — يدعم العربية والإنجليزية مع RTL/LTR تلقائي، حاسبة أسعار فورية، سلة تسوق كاملة، وبوابات دفع سعودية.
 
@@ -18,7 +18,7 @@ cnc-store/
 ├── nginx/
 │   ├── nginx.conf                      # Main Nginx config
 │   ├── conf.d/
-│   │   └── metalart.conf               # Virtual host + SSL + cache
+│   │   └── e3lani.conf               # Virtual host + SSL + cache
 │   └── ssl/                            # ← Put your SSL certs here
 │       ├── fullchain.pem
 │       ├── privkey.pem
@@ -106,8 +106,8 @@ newgrp docker
 ### أول نشر
 ```bash
 # استنساخ المشروع
-git clone https://github.com/your-org/cnc-store /opt/metalart
-cd /opt/metalart
+git clone https://github.com/your-org/cnc-store /opt/e3lani
+cd /opt/e3lani
 
 # إعداد البيئة
 cp .env.example .env
@@ -115,10 +115,10 @@ nano .env   # ← أضف مفاتيح API الحقيقية
 
 # تثبيت شهادة SSL (Let's Encrypt)
 sudo apt install -y certbot
-sudo certbot certonly --standalone -d metalart.sa -d www.metalart.sa
-sudo cp /etc/letsencrypt/live/metalart.sa/fullchain.pem nginx/ssl/
-sudo cp /etc/letsencrypt/live/metalart.sa/privkey.pem   nginx/ssl/
-sudo cp /etc/letsencrypt/live/metalart.sa/chain.pem     nginx/ssl/
+sudo certbot certonly --standalone -d e3lani.com -d www.e3lani.com
+sudo cp /etc/letsencrypt/live/e3lani.com/fullchain.pem nginx/ssl/
+sudo cp /etc/letsencrypt/live/e3lani.com/privkey.pem   nginx/ssl/
+sudo cp /etc/letsencrypt/live/e3lani.com/chain.pem     nginx/ssl/
 
 # رفع المشروع
 bash deploy.sh
@@ -128,7 +128,7 @@ bash deploy.sh
 ```bash
 sudo crontab -e
 # أضف السطر التالي:
-0 3 * * 1 certbot renew --quiet && docker compose -f /opt/metalart/docker-compose.yml restart nginx
+0 3 * * 1 certbot renew --quiet && docker compose -f /opt/e3lani/docker-compose.yml restart nginx
 ```
 
 ---
