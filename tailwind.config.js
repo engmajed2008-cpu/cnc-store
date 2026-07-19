@@ -8,20 +8,23 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        arabic: ["'Cairo'", "'Noto Kufi Arabic'", "sans-serif"],
-        english: ["'Syne'", "'Space Grotesk'", "sans-serif"],
+        arabic: ["'Tajawal'", "'Cairo'", "'Noto Kufi Arabic'", "sans-serif"],
+        english: ["'Tajawal'", "'Syne'", "'Space Grotesk'", "sans-serif"],
+        sans: ["'Tajawal'", "'Cairo'", "sans-serif"],
         mono: ["'JetBrains Mono'", "monospace"],
       },
       colors: {
+        // لوحة هوية «إعلاني» الفاخرة الفاتحة (كريمي/بني/ذهبي) — قاعدة 60-30-10
         brand: {
-          gold: "#C9A84C",
-          "gold-light": "#E8C97A",
-          "gold-dark": "#9A7A30",
-          charcoal: "#1A1A1A",
-          steel: "#2D2D2D",
-          silver: "#8A8A8A",
-          "off-white": "#F5F3EE",
-          cream: "#FAF8F3",
+          gold: "#C9A24B",
+          "gold-light": "#E6CA83",
+          "gold-dark": "#9A7B36",
+          charcoal: "#2C1E15",      // بني داكن فاخر — للنصوص والعناوين ونص الأزرار
+          steel: "#ECE3D2",         // كريمي دافئ — للأسطح والبطاقات (كان داكناً)
+          silver: "#634E40",        // بني متوسط — النصوص الفرعية
+          "off-white": "#2C1E15",   // كان كريمياً (نص فاتح)؛ الآن نص بني داكن على خلفية فاتحة
+          cream: "#FDFBF7",         // كريمي فاتح ناعم — الخلفية العامة
+          "cream-warm": "#F4EFE6",  // كريمي دافئ — Sidebar / Cards / Tables
         },
       },
       animation: {
@@ -53,13 +56,20 @@ module.exports = {
           "100%": { opacity: "1", transform: "translateX(0)" },
         },
       },
+      boxShadow: {
+        "gold-glow": "0 8px 30px rgba(197,160,89,0.25)",
+        soft: "0 4px 18px rgba(44,30,21,0.06)",
+      },
       backgroundImage: {
+        // تدرّج معدني ذهبي للأزرار الرئيسية
         "gold-gradient":
-          "linear-gradient(135deg, #C9A84C 0%, #E8C97A 50%, #C9A84C 100%)",
+          "linear-gradient(135deg, #9A7B36 0%, #E6CA83 50%, #F7E7C4 100%)",
+        // قسم بني داكن فاخر (للأقسام المميزة / الفوتر)
         "dark-gradient":
-          "linear-gradient(180deg, #1A1A1A 0%, #2D2D2D 100%)",
+          "linear-gradient(180deg, #2C1E15 0%, #1E140D 100%)",
+        // إضاءة كريمية ناعمة على الخلفية الفاتحة
         "mesh-gold":
-          "radial-gradient(at 40% 20%, #C9A84C22 0px, transparent 50%), radial-gradient(at 80% 0%, #E8C97A11 0px, transparent 50%), radial-gradient(at 0% 50%, #9A7A3011 0px, transparent 50%)",
+          "radial-gradient(at 40% 20%, rgba(201,162,75,0.10) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(230,202,131,0.08) 0px, transparent 50%), radial-gradient(at 0% 50%, rgba(154,123,54,0.06) 0px, transparent 50%)",
       },
     },
   },

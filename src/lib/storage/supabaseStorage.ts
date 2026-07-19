@@ -50,6 +50,7 @@ export function getSupabasePublic() {
 export const BUCKETS = {
   PRODUCTS: "products",
   ORDERS:   "orders",
+  PARTNERS: "partners", // مستندات الشركاء (سجل تجاري) — خاص، روابط موقّتة فقط
 } as const;
 
 export const ALLOWED_IMAGE_TYPES = [
@@ -131,6 +132,39 @@ export async function uploadOrderDesignFile(
   if (signErr) throw new Error(`Signed URL failed: ${signErr.message}`);
 
   return { storagePath, signedUrl: signedData.signedUrl };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Upload partner CR document (private bucket "partners")
+// ─────────────────────────────────────────────────────────────
+export const ALLOWED_CR_DOC_TYPES = [
+  "image/jpeg", "image/png", "image/webp", "application/pdf",
+];
+export const MAX_CR_DOC_SIZE = 5 * 1024 * 1024; // 5 MB
+
+export async function uploadPartnerCrDoc(
+  file: Buffer,
+  filename: string,
+  mimeType: string,
+  folder: "cr-docs" | "owner-ids" = "cr-docs" // مستند السجل التجاري | صورة هوية المالك
+): Promise<{ storagePath: string }> {
+  if (!ALLOWED_CR_DOC_TYPES.includes(mimeType)) {
+    throw new Error(`Unsupported CR document type: ${mimeType}`);
+  }
+  if (file.byteLength > MAX_CR_DOC_SIZE) {
+    throw new Error("CR document exceeds 5MB limit");
+  }
+
+  const sanitized   = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+  const rand        = Math.random().toString(36).slice(2, 10);
+  const storagePath = `${folder}/${Date.now()}-${rand}/${sanitized}`;
+
+  const { error } = await getSupabaseAdmin().storage
+    .from(BUCKETS.PARTNERS)
+    .upload(storagePath, file, { contentType: mimeType, upsert: false });
+
+  if (error) throw new Error(`CR document upload failed: ${error.message}`);
+  return { storagePath };
 }
 
 // ─────────────────────────────────────────────────────────────

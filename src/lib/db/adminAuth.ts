@@ -93,15 +93,17 @@ export async function verifyAdminRequest(
   if (!payload || typeof payload.sub !== "string") return null;
 
   // Verify token still exists in DB (allows instant revocation)
-  const session = await prisma.adminSession.findUnique({
-    where: { token },
-    include: { adminUser: { select: { id: true, email: true, role: true, isActive: true } } },
-  } as any);
+  // NOTE: AdminSession has no Prisma relation to AdminUser — fetch separately.
+  const session = await prisma.adminSession.findUnique({ where: { token } });
+  if (!session) return null;
+  if (new Date() > session.expiresAt) return null;
 
-  if (!session || !(session as any).adminUser?.isActive) return null;
-  if (new Date() > (session as any).expiresAt) return null;
+  const user = await prisma.adminUser.findUnique({
+    where: { id: session.adminUserId },
+    select: { id: true, email: true, role: true, isActive: true },
+  });
+  if (!user?.isActive) return null;
 
-  const user = (session as any).adminUser;
   return { id: user.id, email: user.email, role: user.role };
 }
 

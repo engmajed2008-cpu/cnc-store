@@ -1,0 +1,730 @@
+// ═══════════════════════════════════════════════════════════════
+// Metal Art — Prisma Schema
+// Database: PostgreSQL (via Supabase)
+// Generator: Prisma Client + Zod (for type-safe validation)
+// ═══════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+// Optional: generate Zod schemas automatically
+// generator zod {
+//   provider = "zod-prisma-types"
+//   output   = "../src/types/zod"
+// }
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // bypasses connection pooler for migrations
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════
+
+enum FinishType {
+  raw
+  painted
+  powder
+  anodized
+}
+
+enum UrgencyType {
+  standard
+  express
+  urgent
+}
+
+enum OrderStatus {
+  pending // awaiting payment confirmation
+  confirmed // payment received, queued for production
+  in_progress // CNC cutting started
+  quality_check
+  ready // ready for pickup / dispatch
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+enum PaymentMethod {
+  mada
+  visa
+  apple_pay
+  tabby
+  tamara
+  stc_pay
+  bank_transfer
+  whatsapp
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+  partially_refunded
+}
+
+enum ProductStatus {
+  draft
+  active
+  archived
+}
+
+enum AdminRole {
+  super_admin
+  admin
+  manager
+  viewer
+}
+
+// ── Marketplace ENUMs (جديدة) ──────────────────────────────────
+
+enum UserRole {
+  CUSTOMER
+  AGENCY
+  SUPPLIER
+  ADMIN
+}
+
+enum CategoryKind {
+  SERVICE // فئات طلبات اللوحات (حلقة العميل ← الوكالات)
+  MATERIAL // فئات كتالوج مواد الموردين (B2B)
+}
+
+enum RequestStatus {
+  OPEN
+  OFFERS
+  AWARDED
+  IN_PROGRESS
+  DELIVERED
+  CLOSED
+  CANCELLED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum EscrowStatus {
+  NONE
+  HELD
+  RELEASED
+  REFUNDED
+}
+
+/// نوع المنشأة المنفّذة (حلقة الطلبات): وكالة دعاية وإعلان أو منشأة متخصصة بالصناعة.
+/// مورّدو المواد لهم جدول مستقل (supplier_profiles).
+enum AgencyKind {
+  AD_AGENCY // وكالة دعاية وإعلان
+  MANUFACTURER // منشأة متخصصة بصناعة الدعاية والإعلان
+}
+
+/// رموز التحقق من الجوال (OTP) — تُحذف بعد الاستخدام أو الانتهاء
+model PhoneOtp {
+  id        String   @id @default(cuid())
+  phone     String // بالصيغة الدولية +9665XXXXXXXX
+  codeHash  String // SHA-256(code + secret)
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+  @@map("phone_otps")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRICING TABLES (replaces hard-coded MATERIAL_RATES)
+// ═══════════════════════════════════════════════════════════════
+
+/// One row per material type (steel, acrylic, cladding, wood, ...)
+model Material {
+  id            String @id @default(cuid())
+  slug          String @unique // "steel", "acrylic", etc.
+  nameAr        String // "حديد / ستيل"
+  nameEn        String // "Steel / Iron"
+  descriptionAr String @default("")
+  descriptionEn String @default("")
+  icon          String @default("🔩")
+  color         String @default("#6B7280") // hex for UI badge
+
+  // ── Price engine fields ──────────────────────────────────
+  basePricePerCm2   Decimal @db.Decimal(10, 6) // SAR per cm²
+  cuttingMultiplier Decimal @db.Decimal(6, 4) // relative cutting difficulty
+  minOrderSAR       Decimal @db.Decimal(10, 2)
+
+  // ── Thickness options (stored as JSON array of ints) ─────
+  thicknessOptionsMm Int[] // [2, 3, 4, 5, 6, 8, 10, 12]
+
+  // ── Allowed finishes for this material ───────────────────
+  allowedFinishes FinishType[]
+
+  // ── Availability ─────────────────────────────────────────
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  // ── Timestamps ───────────────────────────────────────────
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  priceHistory   MaterialPriceHistory[]
+  orderItems     OrderItem[]
+  thicknessTiers ThicknessPriceTier[]
+
+  @@map("materials")
+}
+
+/// Thickness-based surcharge tiers — replaces the hard-coded thicknessMultiplier()
+model ThicknessPriceTier {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  minMm      Int // >= this thickness (mm)
+  maxMm      Int // <= this thickness (mm) | use 9999 for open-ended
+  multiplier Decimal @db.Decimal(6, 4) // e.g. 1.30
+
+  @@unique([materialId, minMm])
+  @@map("thickness_price_tiers")
+}
+
+/// Finish type pricing — replaces FINISH_RATES constant
+model FinishRate {
+  id          String     @id @default(cuid())
+  finish      FinishType @unique
+  nameAr      String
+  nameEn      String
+  pricePerCm2 Decimal    @db.Decimal(10, 6) // SAR per cm²
+  isActive    Boolean    @default(true)
+  sortOrder   Int        @default(0)
+  updatedAt   DateTime   @updatedAt
+
+  @@map("finish_rates")
+}
+
+/// Urgency / delivery time multipliers — replaces URGENCY_MULTIPLIERS
+model UrgencyRate {
+  id           String      @id @default(cuid())
+  urgency      UrgencyType @unique
+  nameAr       String
+  nameEn       String
+  multiplier   Decimal     @db.Decimal(6, 4)
+  leadTimeDays String // "7-10" | "3-5" | "1-2"
+  isActive     Boolean     @default(true)
+  sortOrder    Int         @default(0)
+  updatedAt    DateTime    @updatedAt
+
+  @@map("urgency_rates")
+}
+
+/// Audit trail — every price change is recorded
+model MaterialPriceHistory {
+  id             String   @id @default(cuid())
+  materialId     String
+  material       Material @relation(fields: [materialId], references: [id])
+  changedBy      String // admin user id
+  oldPricePerCm2 Decimal  @db.Decimal(10, 6)
+  newPricePerCm2 Decimal  @db.Decimal(10, 6)
+  oldCuttingMult Decimal  @db.Decimal(6, 4)
+  newCuttingMult Decimal  @db.Decimal(6, 4)
+  reason         String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@map("material_price_history")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRODUCT CATALOG
+// ═══════════════════════════════════════════════════════════════
+
+model Category {
+  id         String       @id @default(cuid())
+  slug       String       @unique // "cnc", "decor", "signs", "advertising", "design"
+  nameAr     String
+  nameEn     String
+  descAr     String       @default("")
+  descEn     String       @default("")
+  icon       String       @default("📦")
+  coverImage String? // Supabase Storage URL
+  kind       CategoryKind @default(SERVICE) // (جديد) SERVICE لطلبات اللوحات | MATERIAL لكتالوج المواد
+  sortOrder  Int          @default(0)
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  products Product[]
+  requests Request[] // (جديد) الطلبات المرتبطة بهذه الفئة (فئات SERVICE)
+
+  @@map("categories")
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  // ── Localized content ───────────────────────────────────
+  nameAr        String
+  nameEn        String
+  descriptionAr String @db.Text
+  descriptionEn String @db.Text
+  taglineAr     String @default("")
+  taglineEn     String @default("")
+
+  // ── Pricing (fixed products, not CNC-calculated) ────────
+  basePriceSAR  Decimal? @db.Decimal(10, 2) // null = use CNC calculator
+  isCustomPrice Boolean  @default(false) // true = always use calculator
+
+  // ── Images (Supabase Storage paths) ─────────────────────
+  images ProductImage[]
+
+  // ── Metadata ─────────────────────────────────────────────
+  tags         String[] // ["laser", "indoor", "custom"]
+  status       ProductStatus @default(draft)
+  isFeatured   Boolean       @default(false)
+  isBestSeller Boolean       @default(false)
+  isNew        Boolean       @default(false)
+  sortOrder    Int           @default(0)
+  viewCount    Int           @default(0)
+
+  // ── CNC-specific fields (if this is a CNC product) ──────
+  materialId    String? // links to Material if CNC product
+  defaultFinish FinishType?
+
+  // ── B2B Supplier (كتالوج مواد الموردين — المرحلة 4) ──────
+  // null = منتج تابع للمنصة (سلوكك الحالي). قيمة = منتج تابع لمورّد.
+  supplierId String?
+  supplier   SupplierProfile? @relation(fields: [supplierId], references: [id])
+
+  // ── SEO ──────────────────────────────────────────────────
+  metaTitleAr String @default("")
+  metaTitleEn String @default("")
+  metaDescAr  String @default("")
+  metaDescEn  String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([supplierId])
+  @@map("products")
+}
+
+model ProductImage {
+  id          String  @id @default(cuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url         String // Supabase Storage public URL
+  storagePath String // "products/{productId}/{filename}" — for deletion
+  altAr       String  @default("")
+  altEn       String  @default("")
+  sortOrder   Int     @default(0)
+  isPrimary   Boolean @default(false)
+
+  @@map("product_images")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ORDERS (المتجر الحالي — بائع واحد)
+// ═══════════════════════════════════════════════════════════════
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique // "MA-240101-ABCD"
+
+  // ── Customer ─────────────────────────────────────────────
+  customerName  String
+  customerPhone String // Saudi mobile 05XXXXXXXX
+  customerEmail String?
+  city          String
+  district      String
+  street        String
+  zipCode       String?
+  deliveryNotes String?
+
+  // ── Financials ───────────────────────────────────────────
+  subtotalSAR Decimal @db.Decimal(10, 2)
+  discountSAR Decimal @default(0) @db.Decimal(10, 2)
+  shippingSAR Decimal @default(0) @db.Decimal(10, 2)
+  vatSAR      Decimal @db.Decimal(10, 2)
+  totalSAR    Decimal @db.Decimal(10, 2)
+  couponCode  String?
+
+  // ── Payment ──────────────────────────────────────────────
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(pending)
+  gatewayRef    String? // external payment ID from Moyasar / Tabby
+  paidAt        DateTime?
+
+  // ── Status ───────────────────────────────────────────────
+  status OrderStatus @default(pending)
+
+  // ── Locale ───────────────────────────────────────────────
+  locale String @default("ar") // "ar" | "en"
+
+  // ── Timestamps ───────────────────────────────────────────
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  files         OrderFile[]
+
+  @@index([customerPhone])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // ── Product reference (optional) ─────────────────────────
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  // ── Material reference ───────────────────────────────────
+  materialId String?
+  material   Material? @relation(fields: [materialId], references: [id])
+
+  // ── Snapshot of config at order time ─────────────────────
+  materialSlug   String // "steel" — snapshot, not FK-dependent
+  materialNameAr String
+  materialNameEn String
+  thicknessMm    Int
+  widthCm        Decimal     @db.Decimal(8, 2)
+  heightCm       Decimal     @db.Decimal(8, 2)
+  quantity       Int
+  finish         FinishType
+  urgency        UrgencyType
+
+  // ── Price snapshot ───────────────────────────────────────
+  unitPriceSAR  Decimal @db.Decimal(10, 2)
+  totalPriceSAR Decimal @db.Decimal(10, 2)
+  areaCm2       Int
+
+  note           String?
+  designFileName String? // uploaded file name
+
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id])
+  status    OrderStatus
+  note      String?
+  changedBy String? // admin user id or "system"
+  createdAt DateTime    @default(now())
+
+  @@map("order_status_history")
+}
+
+/// Design files uploaded by customers (stored in Supabase Storage)
+model OrderFile {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  fileName    String
+  storagePath String // "orders/{orderId}/{filename}"
+  fileSize    Int // bytes
+  mimeType    String
+  uploadedAt  DateTime @default(now())
+
+  @@map("order_files")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN USERS
+// ═══════════════════════════════════════════════════════════════
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String // bcrypt hash
+  role         AdminRole @default(viewer)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id          String   @id @default(cuid())
+  adminUserId String
+  token       String   @unique // signed JWT or opaque token
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([token])
+  @@map("admin_sessions")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SITE SETTINGS (key-value store for global config)
+// ═══════════════════════════════════════════════════════════════
+
+model SiteSetting {
+  key       String   @id // "vat_rate" | "usd_rate" | "free_shipping_threshold"
+  value     String // JSON-serialized
+  label     String   @default("") // human-readable label
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  MARKETPLACE — المرحلة 0 (إضافات الماركتبليس)
+//  • Supabase Auth: profiles.id = auth.users.id (عبر trigger)
+//  • إنفاذ الأدوار في طبقة API (Prisma يتجاوز RLS) عبر withAuth(role)
+//  • الربح: عمولة على العرض المقبول | الدفع داخلي (Escrow)
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
+// ── الجغرافيا + المرجع التنظيمي (متعدد الأمانات) ───────────────
+
+model Amana {
+  id        String   @id @default(cuid())
+  nameAr    String // «أمانة محافظة جدة»
+  nameEn    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  municipalities Municipality[]
+  guides         RegulatoryGuide[]
+  agencies       AgencyProfile[]
+  suppliers      SupplierProfile[]
+
+  @@map("amanat")
+}
+
+model Municipality {
+  id       String  @id @default(cuid())
+  amanaId  String
+  nameAr   String // بلدية تابعة للأمانة
+  nameEn   String
+  isActive Boolean @default(true)
+
+  amana    Amana             @relation(fields: [amanaId], references: [id])
+  requests Request[]
+  guides   RegulatoryGuide[] // استثناءات على مستوى البلدية (اختياري)
+
+  @@index([amanaId])
+  @@map("municipalities")
+}
+
+/// الدليل التنظيمي للوحات — مرقّم بإصدار. rules (JSON) يحمل أنواع اللوحات وقواعدها.
+model RegulatoryGuide {
+  id             String    @id @default(cuid())
+  amanaId        String
+  municipalityId String? // null = كل بلديات الأمانة | قيمة = استثناء بلدية
+  version        String // مثل "2024.1"
+  effectiveDate  DateTime?
+  sourceUrl      String? // مرجع الدليل الرسمي (بلدي/الأمانة)
+  rules          Json // { signTypes: [...], constraints: {...} }
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  amana        Amana         @relation(fields: [amanaId], references: [id])
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+
+  @@index([amanaId, isActive])
+  @@map("regulatory_guides")
+}
+
+// ── الحسابات والأدوار ──────────────────────────────────────────
+
+model Profile {
+  id              String    @id @db.Uuid // = auth.users.id (يُنشأ عبر trigger عند التسجيل)
+  role            UserRole  @default(CUSTOMER)
+  fullName        String
+  phone           String?
+  phoneVerifiedAt DateTime? // تاريخ التحقق من الجوال عبر OTP
+  email           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  agencyProfile    AgencyProfile?
+  supplierProfile  SupplierProfile?
+  requests         Request[]          @relation("CustomerRequests")
+  ordersAsCustomer MarketplaceOrder[] @relation("CustomerOrders")
+  reviewsGiven     Review[]           @relation("ReviewAuthor")
+
+  @@index([role])
+  @@map("profiles")
+}
+
+model AgencyProfile {
+  id           String     @id @default(cuid())
+  profileId    String     @unique @db.Uuid
+  companyName  String
+  crNumber     String? // السجل التجاري
+  amanaId      String? // الأمانة التي تخدمها الوكالة (جدة الآن)
+  kind         AgencyKind @default(AD_AGENCY) // وكالة | منشأة صناعة
+  crDocPath    String? // مسار صورة السجل التجاري في bucket partners (خاص)
+  verified     Boolean    @default(false)
+  verifiedAt   DateTime?
+  rating       Float      @default(0)
+  reviewsCount Int        @default(0)
+  isAnchor     Boolean    @default(false) // وكالة المرساة (مطبعتك)
+  createdAt    DateTime   @default(now())
+
+  profile Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  amana   Amana?             @relation(fields: [amanaId], references: [id])
+  offers  Offer[]
+  orders  MarketplaceOrder[] @relation("AgencyOrders")
+  reviews Review[]           @relation("ReviewedAgency")
+
+  @@index([verified])
+  @@index([amanaId])
+  @@map("agency_profiles")
+}
+
+model SupplierProfile {
+  id          String   @id @default(cuid())
+  profileId   String   @unique @db.Uuid
+  companyName String
+  crNumber    String?
+  amanaId     String?
+  crDocPath   String? // مسار صورة السجل التجاري في bucket partners (خاص)
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  profile  Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  amana    Amana?    @relation(fields: [amanaId], references: [id])
+  products Product[] // كتالوج مواد المورّد (B2B)
+
+  @@map("supplier_profiles")
+}
+
+// ── (الكيان الجوهري) الطلب + العروض — حلقة الخدمة ───────────────
+
+model Request {
+  id             String        @id @default(cuid())
+  customerId     String        @db.Uuid
+  municipalityId String // موقع الطلب => يحدّد الدليل التنظيمي المطبّق
+  categoryId     String // فئة من نوع SERVICE
+  title          String
+  specs          Json // مخرجات SignCustomizer
+  attachments    String[] // مسارات Supabase Storage
+  budgetEstimate Decimal?      @db.Decimal(10, 2)
+  status         RequestStatus @default(OPEN)
+
+  // لقطة المطابقة (snapshot — لا تتأثر بتحديث الدليل لاحقاً):
+  guideId      String?
+  guideVersion String?
+
+  deadline  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  customer     Profile           @relation("CustomerRequests", fields: [customerId], references: [id])
+  municipality Municipality      @relation(fields: [municipalityId], references: [id])
+  category     Category          @relation(fields: [categoryId], references: [id])
+  offers       Offer[]
+  order        MarketplaceOrder?
+
+  @@index([status])
+  @@index([municipalityId, status])
+  @@index([categoryId])
+  @@map("requests")
+}
+
+model Offer {
+  id           String      @id @default(cuid())
+  requestId    String
+  agencyId     String
+  price        Decimal     @db.Decimal(10, 2)
+  leadTimeDays Int
+  notes        String?
+  attachments  String[]
+  status       OfferStatus @default(PENDING)
+  createdAt    DateTime    @default(now())
+
+  request Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  agency  AgencyProfile @relation(fields: [agencyId], references: [id])
+
+  @@unique([requestId, agencyId]) // عرض واحد لكل وكالة على الطلب
+  @@index([status])
+  @@map("offers")
+}
+
+// ── العقد + الدفع (Escrow) + العمولة ───────────────────────────
+
+model MarketplaceOrder {
+  id               String       @id @default(cuid())
+  requestId        String       @unique
+  offerId          String       @unique
+  customerId       String       @db.Uuid
+  agencyId         String
+  amount           Decimal      @db.Decimal(10, 2)
+  commissionRate   Decimal      @db.Decimal(5, 4) // لقطة من site_settings (مثال 0.05)
+  commissionAmount Decimal      @db.Decimal(10, 2)
+  status           OrderStatus  @default(pending)
+  escrowStatus     EscrowStatus @default(NONE)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  request  Request       @relation(fields: [requestId], references: [id])
+  customer Profile       @relation("CustomerOrders", fields: [customerId], references: [id])
+  agency   AgencyProfile @relation("AgencyOrders", fields: [agencyId], references: [id])
+  payment  Payment?
+  review   Review?
+
+  @@index([escrowStatus])
+  @@map("marketplace_orders")
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  orderId      String        @unique
+  gateway      String // Tap / HyperPay / Moyasar / PayTabs
+  gatewayRef   String?
+  method       PaymentMethod @default(mada)
+  amount       Decimal       @db.Decimal(10, 2)
+  status       PaymentStatus @default(pending)
+  authorizedAt DateTime?
+  capturedAt   DateTime?
+  releasedAt   DateTime?
+  createdAt    DateTime      @default(now())
+
+  order MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  authorId  String   @db.Uuid // العميل
+  agencyId  String
+  rating    Int // 1..5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  order  MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author Profile          @relation("ReviewAuthor", fields: [authorId], references: [id])
+  agency AgencyProfile    @relation("ReviewedAgency", fields: [agencyId], references: [id])
+
+  @@map("reviews")
+}
