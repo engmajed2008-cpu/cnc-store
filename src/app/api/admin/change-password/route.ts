@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   await prisma.adminUser.update({ where: { id: admin.id }, data: { passwordHash: newHash } });
 
   // إلغاء كل الجلسات الأخرى (الجلسة الحالية تبقى)
-  const currentToken = req.cookies.get("metalart_admin")?.value;
+  const currentToken = req.cookies.get("e3lani_admin")?.value;
   await prisma.adminSession.deleteMany({
     where: { adminUserId: admin.id, ...(currentToken ? { token: { not: currentToken } } : {}) },
   });

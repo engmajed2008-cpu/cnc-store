@@ -416,7 +416,7 @@ export const DEFAULT_SIGN_IMAGES: SignImages = {
 };
 
 const KEYS = {
-  slides:              "metalart_slides_v1",
+  slides:              "e3lani_slides_v1",
   hero:                "metalart_hero_v1",
   stats:               "metalart_stats_v1",
   products:            "metalart_products_v1",       // كروت الصفحة الرئيسية (CategoryGrid)

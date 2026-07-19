@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/login — دخول مشرفي المنصة (AdminUser + bcrypt)
- * ينشئ جلسة JWT في كوكي httpOnly باسم metalart_admin (يقرأها withAdminAuth).
+ * ينشئ جلسة JWT في كوكي httpOnly باسم e3lani_admin (يقرأها withAdminAuth).
  */
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     admin: { email: admin.email, name: admin.name, role: admin.role },
   });
-  res.cookies.set("metalart_admin", token, {
+  res.cookies.set("e3lani_admin", token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

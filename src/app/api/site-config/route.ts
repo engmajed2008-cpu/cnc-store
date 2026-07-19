@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+let _supabase: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _supabase;
+}
 
 const CACHE = new Map<string, { data: unknown; ts: number }>();
 const TTL = 5 * 60 * 1000;
@@ -22,7 +28,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!key) {
-    const { data, error } = await supabase.from("site_config").select("key, value");
+    const { data, error } = await getSupabase().from("site_config").select("key, value");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const result: Record<string, unknown> = {};
     (data ?? []).forEach(row => { result[row.key] = row.value; });
@@ -32,7 +38,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("site_config")
     .select("value")
     .eq("key", key)
@@ -54,7 +60,7 @@ export async function POST(req: NextRequest) {
   const { key, value } = await req.json() as { key: string; value: unknown };
   if (!key) return NextResponse.json({ error: "key required" }, { status: 400 });
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from("site_config")
     .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
 
