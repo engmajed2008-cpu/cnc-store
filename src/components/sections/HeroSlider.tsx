@@ -11,6 +11,15 @@ export default function HeroSlider({ locale }: { locale: string }) {
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [whatsapp, setWhatsapp] = useState(DEFAULT_CONTACT.whatsapp);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     const loaded = siteStore.getSlides();
@@ -40,7 +49,7 @@ export default function HeroSlider({ locale }: { locale: string }) {
     <div
       dir={ar ? "rtl" : "ltr"}
       style={{
-        position: "relative", width: "100%", height: "520px",
+        position: "relative", width: "100%", height: isMobile ? "440px" : "520px",
         overflow: "hidden",
         background: "linear-gradient(135deg,#2C1E15 0%,#1E140D 100%)",
         transition: "background 0.6s ease", fontFamily: "Tajawal, Cairo, sans-serif",
@@ -77,7 +86,9 @@ export default function HeroSlider({ locale }: { locale: string }) {
           {/* Dark overlay — strong on right for AR, strong on left for EN */}
           <div style={{
             position: "absolute", inset: 0,
-            background: ar
+            background: isMobile
+              ? "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.72) 100%)"
+              : ar
               ? "linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.88) 100%)"
               : "linear-gradient(to left, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.88) 100%)",
           }} />
@@ -89,11 +100,11 @@ export default function HeroSlider({ locale }: { locale: string }) {
         position: "absolute",
         top: 0, bottom: 0,
         [ar ? "right" : "left"]: 0,
-        width: "45%",
+        width: isMobile ? "100%" : "45%",
         display: "flex", flexDirection: "column", justifyContent: "center",
         alignItems: "flex-start",
         textAlign: ar ? "right" : "left",
-        padding: "3rem 4rem",
+        padding: isMobile ? "2rem 1.25rem 3.5rem" : "3rem 4rem",
         opacity: isAnimating ? 0 : 1,
         transform: isAnimating ? ("translateX(" + (ar ? "20px" : "-20px") + ")") : "translateX(0)",
         transition: "all 0.6s ease",
