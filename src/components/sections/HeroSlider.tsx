@@ -101,10 +101,11 @@ export default function HeroSlider({ locale }: { locale: string }) {
         top: 0, bottom: 0,
         [ar ? "right" : "left"]: 0,
         width: isMobile ? "100%" : "45%",
-        display: "flex", flexDirection: "column", justifyContent: "center",
-        alignItems: "flex-start",
-        textAlign: ar ? "right" : "left",
-        padding: isMobile ? "2rem 1.25rem 3.5rem" : "3rem 4rem",
+        display: "flex", flexDirection: "column",
+        justifyContent: isMobile ? "flex-end" : "center",
+        alignItems: isMobile ? "center" : "flex-start",
+        textAlign: isMobile ? "center" : ar ? "right" : "left",
+        padding: isMobile ? "2rem 1rem 3.6rem" : "3rem 4rem",
         opacity: isAnimating ? 0 : 1,
         transform: isAnimating ? ("translateX(" + (ar ? "20px" : "-20px") + ")") : "translateX(0)",
         transition: "all 0.6s ease",
@@ -114,8 +115,8 @@ export default function HeroSlider({ locale }: { locale: string }) {
           display: "inline-flex", alignItems: "center", gap: "0.5rem",
           padding: "0.35rem 1rem", borderRadius: 999,
           background: "rgba(201,162,75,0.12)", border: "1px solid rgba(201,162,75,0.3)",
-          marginBottom: "1.5rem", width: "fit-content",
-          alignSelf: "flex-start",
+          marginBottom: isMobile ? "0.9rem" : "1.5rem", width: "fit-content",
+          alignSelf: isMobile ? "center" : "flex-start",
         }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#C9A24B", display: "inline-block", animation: "pulse 2s infinite" }} />
           <span style={{ color: "#C9A24B", fontSize: "0.78rem", fontWeight: 700 }}>{ar ? slide.badge : (slide.badgeEn || slide.badge)}</span>
@@ -123,7 +124,7 @@ export default function HeroSlider({ locale }: { locale: string }) {
 
         {/* Title */}
         <h2 style={{
-          fontSize: "clamp(1.8rem,3.5vw,2.8rem)", fontWeight: 900,
+          fontSize: isMobile ? "1.45rem" : "clamp(1.8rem,3.5vw,2.8rem)", fontWeight: 900,
           lineHeight: 1.15, color: "#F4ECDD", margin: "0 0 1rem 0",
           textShadow: "0 2px 18px rgba(0,0,0,0.45)",
         }}>
@@ -131,12 +132,12 @@ export default function HeroSlider({ locale }: { locale: string }) {
         </h2>
 
         {/* Subtitle */}
-        <p style={{ color: slide.image ? "rgba(255,255,255,0.88)" : "rgba(244,236,221,0.82)", fontSize: "1rem", lineHeight: 1.8, maxWidth: 420, margin: "0 0 2rem 0" }}>
+        <p style={{ color: slide.image ? "rgba(255,255,255,0.88)" : "rgba(244,236,221,0.82)", lineHeight: 1.8, maxWidth: 420, margin: isMobile ? "0 0 1.2rem 0" : "0 0 2rem 0", fontSize: isMobile ? "0.88rem" : "1rem" }}>
           {ar ? slide.subtitle : (slide.subtitleEn || slide.subtitle)}
         </p>
 
         {/* Buttons */}
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: ar ? "flex-end" : "flex-start" }}>
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: isMobile ? "center" : ar ? "flex-end" : "flex-start" }}>
           <Link
             href={"/" + locale + slide.href}
             className="btn-shine btn-shine-gold"
@@ -173,8 +174,8 @@ export default function HeroSlider({ locale }: { locale: string }) {
 
       {/* Prev button */}
       <button onClick={prev} style={{
-        position: "absolute", top: "50%", [ar ? "right" : "left"]: "1rem",
-        transform: "translateY(-50%)", width: 44, height: 44, borderRadius: "50%",
+        position: "absolute", top: isMobile ? "38%" : "50%", [ar ? "right" : "left"]: isMobile ? "0.5rem" : "1rem",
+        transform: "translateY(-50%)", width: isMobile ? 34 : 44, height: isMobile ? 34 : 44, borderRadius: "50%",
         background: "rgba(201,162,75,0.1)", border: "1.5px solid rgba(201,162,75,0.3)",
         color: "#C9A24B", fontSize: "1.1rem", cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10,
@@ -184,8 +185,8 @@ export default function HeroSlider({ locale }: { locale: string }) {
 
       {/* Next button */}
       <button onClick={next} style={{
-        position: "absolute", top: "50%", [ar ? "left" : "right"]: "1rem",
-        transform: "translateY(-50%)", width: 44, height: 44, borderRadius: "50%",
+        position: "absolute", top: isMobile ? "38%" : "50%", [ar ? "left" : "right"]: isMobile ? "0.5rem" : "1rem",
+        transform: "translateY(-50%)", width: isMobile ? 34 : 44, height: isMobile ? 34 : 44, borderRadius: "50%",
         background: "rgba(201,162,75,0.1)", border: "1.5px solid rgba(201,162,75,0.3)",
         color: "#C9A24B", fontSize: "1.1rem", cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10,

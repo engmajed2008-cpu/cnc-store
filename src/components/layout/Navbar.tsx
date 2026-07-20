@@ -173,7 +173,7 @@ export default function Navbar({ locale }: { locale: string }) {
       {/* ROW 1 — Logo / Search / Controls */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "0.6rem 0.9rem" : "0.7rem 2.5rem", borderBottom: "1px solid rgba(201,162,75,0.08)", gap: isMobile ? "0.5rem" : "1rem", flexWrap: isMobile ? "wrap" : "nowrap" }}>
 
-        <Link href={`/${locale}`} style={{ display: "flex", alignItems: "center", gap: "0.65rem", textDecoration: "none", flexShrink: 0 }}>
+        <Link href={`/${locale}`} style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: "0.65rem", textDecoration: "none", flexShrink: 0, flex: isMobile ? "1 1 100%" : "0 0 auto" }}>
           {ar ? (
             <div style={{ display: "flex", alignItems: "flex-start", gap: "0.9rem" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.18rem" }}>
@@ -213,7 +213,7 @@ export default function Navbar({ locale }: { locale: string }) {
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-end", gap: "0.6rem", flexShrink: 0, flex: isMobile ? "1 1 100%" : "0 0 auto" }}>
           <Link href={switchLocalePath} style={{ padding: "0.38rem 0.9rem", borderRadius: 999, border: "1.5px solid rgba(201,162,75,0.25)", background: "rgba(201,162,75,0.06)", color: NAV_TEXT, fontSize: "0.78rem", fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
             {ar ? "🇬🇧 EN" : "🇸🇦 AR"}
           </Link>
