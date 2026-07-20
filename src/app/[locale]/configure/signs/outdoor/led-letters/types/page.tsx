@@ -476,7 +476,7 @@ export default function LedLettersTypesPage() {
               <h3 style={{ fontWeight: 800, margin: "0 0 0.5rem 0", fontSize: "1.1rem" }}>ثانياً: إرشادات شدة الإضاءة ولونها</h3>
               <p style={{ color: "#777", fontSize: "0.82rem", margin: "0 0 1.5rem 0" }}>وفق § ٤.٥ من إرشادات أمانة جدة — يجب ألا يكون الضوء مبهراً وألا يُخفي ملامح الحرف</p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
                 {[
                   { level: "المستوى الأول", type: "إضاءة دافئة", range: "٢٧٠٠ – ٣٥٠٠ كلفن", color: "#FFF5E0", use: "أجواء مريحة ودافئة" },
                   { level: "المستوى الثاني", type: "إضاءة محايدة", range: "حد أقصى ٤٠٠٠ كلفن", color: "#F5F5DC", use: "التوازن بين الأجواء والرؤية" },
