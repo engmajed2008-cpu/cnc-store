@@ -1,4 +1,5 @@
 "use client";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 
 const GOLD = "#C9A24B";
@@ -141,6 +142,7 @@ function derivePanelId(s: MaterialSelection): string {
 }
 
 export default function MaterialModal({ open, onClose, onApply, letterTypes, sideStyles, fonts, initial, group }: Props) {
+  const isMobile = useIsMobile();
   const [sel, setSel] = useState<MaterialSelection>(initial);
   const [panelTypeId, setPanelTypeId] = useState<string>(() => derivePanelId(initial));
   const [previewText, setPreviewText] = useState(DEFAULT_WORD);
@@ -224,12 +226,12 @@ export default function MaterialModal({ open, onClose, onApply, letterTypes, sid
         {/* Body — fixed row, no wrap, each side scrolls independently */}
         <div style={{
           flex: 1, minHeight: 0,
-          display: "flex", flexDirection: "row",
+          display: "flex", flexDirection: isMobile ? "column" : "row",
           overflow: "hidden",
         }}>
           {/* ─── Options panel — LEFT (narrower, scrollable) ─── */}
           <div ref={scrollRef} style={{
-            flex: "0 0 42%", minWidth: 260, maxWidth: 400,
+            flex: isMobile ? "0 0 45%" : "0 0 42%", minWidth: isMobile ? 0 : 260, maxWidth: isMobile ? "100%" : 400,
             overflowY: "auto", overflowX: "hidden",
             padding: "0.85rem 1rem",
             display: "flex", flexDirection: "column", gap: "0.75rem",

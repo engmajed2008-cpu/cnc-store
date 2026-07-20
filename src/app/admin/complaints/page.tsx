@@ -151,7 +151,7 @@ export default function AdminComplaintsPage() {
         </div>
 
         {/* Stats */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"1rem", marginBottom:"2rem" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap:"1rem", marginBottom:"2rem" }}>
           {[
             { label:"إجمالي الشكاوي", value:stats.total,     color:"#C9A24B" },
             { label:"مفتوحة",         value:stats.open,      color:"#f59e0b" },

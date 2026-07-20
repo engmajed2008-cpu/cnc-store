@@ -402,7 +402,7 @@ export default function SiteColorsAdminPage() {
       </div>
 
       {/* Color cards grid — section colors */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: "1rem", marginBottom: "1rem" }}>
         <ColorCard
           title="الخلفية الفاتحة"
           subtitle="تؤثر على: المسارات الثلاث، شريط الإحصائيات، بطاقات المزايا، بانر الشراكة"
@@ -439,7 +439,7 @@ export default function SiteColorsAdminPage() {
       </div>
 
       {/* Nav + Footer color cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: "1rem", marginBottom: "2rem" }}>
         <ColorCard
           title="خلفية الشريط العلوي (Navbar)"
           subtitle="يُطبَّق على شريط التنقل المثبت في أعلى كل صفحة"

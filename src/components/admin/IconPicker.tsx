@@ -142,7 +142,7 @@ export default function IconPicker({ value, onChange }: IconPickerProps) {
 
           {/* Icon grid */}
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(8, 1fr)",
+            display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))",
             gap: 4, padding: 10,
           }}>
             {filteredIcons.map(icon => {

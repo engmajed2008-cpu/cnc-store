@@ -184,7 +184,8 @@ export default function LedLettersPage() {
       {/* Configurator */}
       <section style={{ padding: "2.5rem 0 5rem" }}>
         <div className="section-container">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "2rem", alignItems: "start" }}>
+          <div className="led-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "2rem", alignItems: "start" }}>
+          <style dangerouslySetInnerHTML={{ __html: "@media(max-width:900px){.led-grid{grid-template-columns:1fr!important}}" }} />
 
             {/* Left: Steps */}
             <div>

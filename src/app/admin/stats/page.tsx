@@ -225,7 +225,7 @@ export default function StatsAdminPage() {
       {tab === "why" && (
         <div>
           {/* Cards grid */}
-          <div style={{ display: "grid", gridTemplateColumns: safeWhy.length <= 2 ? `repeat(${safeWhy.length}, 1fr)` : "repeat(3, 1fr)", gap: "1rem", marginBottom: "1.25rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: safeWhy.length <= 2 ? `repeat(${safeWhy.length}, 1fr)` : "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
             {safeWhy.map(card => (
               <div key={card.id} style={{ borderRadius: 16, border: "1px solid rgba(201,162,75,0.12)", background: "#E2CFA8", padding: "1.5rem", position: "relative" }}>
                 {/* Delete confirm */}

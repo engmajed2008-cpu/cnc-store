@@ -4004,7 +4004,8 @@ export default function RaisedLettersPage() {
       </div>
 
       {/* ── 3-column layout ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 300px", gridTemplateAreas: '"r c l" "r s l"', gap: "1rem", maxWidth: 1920, margin: "0 auto", padding: "1rem 1.5rem", alignItems: "start" }}>
+      <div className="rl-grid" style={{ display: "grid", gridTemplateColumns: "300px 1fr 300px", gridTemplateAreas: '"r c l" "r s l"', gap: "1rem", maxWidth: 1920, margin: "0 auto", padding: "1rem 1.5rem", alignItems: "start" }}>
+      <style dangerouslySetInnerHTML={{ __html: "@media(max-width:900px){.rl-grid{grid-template-columns:1fr!important;grid-template-areas:\"c\" \"s\" \"r\" \"l\"!important;padding:0.75rem!important}}" }} />
 
         {/* ─── ملخص الطلب — أسفل منطقة التصميم (area s) ─── */}
         <div style={{ gridArea: "s", marginTop: "1rem" }}>
