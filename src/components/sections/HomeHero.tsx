@@ -397,9 +397,7 @@ export default function HomeHero({ locale }: { locale: string }) {
       {/* Path cards — dynamic grid */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: paths.length <= 2
-          ? `repeat(${paths.length}, minmax(280px, 1fr))`
-          : "repeat(3, 1fr)",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
         gap: 18, width: "100%", maxWidth: 1100,
         position: "relative", zIndex: 1,
       }}>

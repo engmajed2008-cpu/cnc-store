@@ -78,7 +78,7 @@ export default function HomeStats({ locale }: { locale: string }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: `repeat(${stats.length}, 1fr)`,
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
             background: colors.sectionCream,
             border: "1px solid rgba(74,53,37,0.15)",
             borderRadius: 16,
@@ -154,9 +154,7 @@ export default function HomeStats({ locale }: { locale: string }) {
         {/* Why cards */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: whyCards.length <= 2
-            ? `repeat(${whyCards.length}, 1fr)`
-            : "repeat(3, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
           gap: 20,
         }}>
           {whyCards.map((w) => (
