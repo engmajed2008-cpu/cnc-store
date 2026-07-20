@@ -317,7 +317,8 @@ export default function SignDesignerPage() {
       {/* ── Main Grid ── */}
       <section style={{ padding: "2rem 0 6rem" }}>
         <div className="section-container" dir="rtl">
-          <div style={{ display: "grid", gridTemplateColumns: "400px 1fr", gap: "2.5rem", alignItems: "start" }}>
+          <div className="designer-grid" style={{ display: "grid", gridTemplateColumns: "400px 1fr", gap: "2.5rem", alignItems: "start" }}>
+          <style dangerouslySetInnerHTML={{ __html: "@media(max-width:900px){.designer-grid{grid-template-columns:1fr!important}}" }} />
 
             {/* ── Controls ── */}
             <div>

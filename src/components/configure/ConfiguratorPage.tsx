@@ -1,4 +1,5 @@
 "use client";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { siteStore, DEFAULT_CONFIGURE_CATEGORIES, type ConfigureCategory } from "@/store/siteStore";
@@ -993,6 +994,7 @@ function CategoryCard({
 /* ─────────────────────────── MAIN PAGE ─────────────────────────── */
 
 export default function ConfiguratorPage({ locale }: { locale: string }) {
+  const isMobile = useIsMobile();
   const isAr = locale === "ar";
   const L = (ar: string, en: string) => isAr ? ar : en;
 
@@ -1164,7 +1166,7 @@ export default function ConfiguratorPage({ locale }: { locale: string }) {
                 </button>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 300px", gap: 24, alignItems: "start" }}>
                 {/* Left: form + request */}
                 <div>
                   <div style={{

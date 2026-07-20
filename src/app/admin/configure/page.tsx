@@ -270,7 +270,7 @@ export default function AdminConfigurePage() {
             {/* Gradient */}
             <div style={{ marginBottom: "1.25rem" }}>
               <label style={{ display: "block", color: "#C9A24B", fontSize: "0.78rem", fontWeight: 700, marginBottom: 8 }}>التدرج اللوني</label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 8 }}>
                 {GRADIENT_PRESETS.map((g) => (
                   <button
                     key={g.value}
