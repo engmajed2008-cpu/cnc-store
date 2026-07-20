@@ -80,6 +80,15 @@ export default function Navbar({ locale }: { locale: string }) {
   }, []);
   const [switchLocalePath, setSwitchLocalePath] = useState(`/${other}`);
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
   useEffect(() => {
     setSwitchLocalePath(pathname.replace(/^\/(ar|en)/, `/${other}`));
   }, [pathname, other]);
@@ -151,20 +160,20 @@ export default function Navbar({ locale }: { locale: string }) {
       }}
     >
       {/* ROW 1 — Logo / Search / Controls */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.7rem 2.5rem", borderBottom: "1px solid rgba(201,162,75,0.08)", gap: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "0.6rem 0.9rem" : "0.7rem 2.5rem", borderBottom: "1px solid rgba(201,162,75,0.08)", gap: isMobile ? "0.5rem" : "1rem", flexWrap: isMobile ? "wrap" : "nowrap" }}>
 
         <Link href={`/${locale}`} style={{ display: "flex", alignItems: "center", gap: "0.65rem", textDecoration: "none", flexShrink: 0 }}>
           {ar ? (
             <div style={{ display: "flex", alignItems: "flex-start", gap: "0.9rem" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.18rem" }}>
-                <div style={{ height: 44, display: "flex", alignItems: "center" }}>
-                  <img src="/brand/e3lani-mark.svg" alt="إعلاني" style={{ height: 44, width: "auto", display: "block" }} />
+                <div style={{ height: isMobile ? 34 : 44, display: "flex", alignItems: "center" }}>
+                  <img src="/brand/e3lani-mark.svg" alt="إعلاني" style={{ height: isMobile ? 34 : 44, width: "auto", display: "block" }} />
                 </div>
                 <span dir="ltr" style={{ fontSize: "0.66rem", color: NAV_GOLD, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 800 }}>E3LANI.COM</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.18rem" }}>
-                <div style={{ height: 44, display: "flex", alignItems: "center" }}>
-                  <img src="/brand/e3lani-word.svg" alt="إعلاني" style={{ height: 44, width: "auto", display: "block" }} />
+                <div style={{ height: isMobile ? 34 : 44, display: "flex", alignItems: "center" }}>
+                  <img src="/brand/e3lani-word.svg" alt="إعلاني" style={{ height: isMobile ? 34 : 44, width: "auto", display: "block" }} />
                 </div>
                 <span style={{ fontSize: "0.78rem", color: NAV_MUTED, fontWeight: 600, whiteSpace: "nowrap" }}>سوق الدعاية والإعلان</span>
               </div>
@@ -181,7 +190,7 @@ export default function Navbar({ locale }: { locale: string }) {
           )}
         </Link>
 
-        <div style={{ flex: 1, maxWidth: 520, position: "relative" }}>
+        <div style={{ flex: isMobile ? "1 1 100%" : 1, order: isMobile ? 3 : undefined, maxWidth: isMobile ? "100%" : 520, position: "relative" }}>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -244,7 +253,7 @@ export default function Navbar({ locale }: { locale: string }) {
       </div>
 
       {/* ROW 2 — Navigation */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2.5rem", gap: "0.25rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", padding: isMobile ? "0 0.5rem" : "0 2.5rem", gap: "0.25rem", overflowX: isMobile ? "auto" : "visible", WebkitOverflowScrolling: "touch" }}>
         {menuItems.map((item) => (
           <div key={item.key}>
             {item.children.length === 0 && item.href ? (
@@ -308,7 +317,7 @@ export default function Navbar({ locale }: { locale: string }) {
             </div>
 
             {/* Cards grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 10 }}>
               {activeMenu.children.map((child, i) => (
                 <MegaCard
                   key={i}
