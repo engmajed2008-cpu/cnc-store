@@ -112,7 +112,7 @@ export default function OrdersPage() {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 2rem", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href={"/" + locale} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <BrandMark size={34} />
-            <span style={{ fontSize: ar ? "0.9rem" : "1rem", fontWeight: 900, ...GT }}>{ar ? "سوق الدعاية والإعلان" : "ADSOUQ"}</span>
+            <span style={{ fontSize: ar ? "0.9rem" : "1rem", fontWeight: 900, ...GT }}>{ar ? "سوق الدعاية والإعلان" : "E3lani"}</span>
           </Link>
           <button onClick={handleLogout} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 1rem", borderRadius: 999, border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.06)", color: "#f87171", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", fontFamily: "Tajawal, Cairo, sans-serif" }}>
             <LogOut size={13} />{ar ? "تسجيل الخروج" : "Sign Out"}

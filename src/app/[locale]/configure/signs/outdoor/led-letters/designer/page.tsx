@@ -223,7 +223,7 @@ export default function SignDesignerPage() {
   const ar = locale === "ar";
 
   const [arabicName,     setArabicName]     = useState("أدسوق");
-  const [englishName,    setEnglishName]    = useState("ADSOUQ");
+  const [englishName,    setEnglishName]    = useState("E3LANI");
   const [taglineAr,      setTaglineAr]      = useState("لوحات احترافية");
   const [taglineEn,      setTaglineEn]      = useState("Professional Signs");
   const [hasLogo,        setHasLogo]        = useState(false);

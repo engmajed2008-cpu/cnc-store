@@ -245,7 +245,7 @@ export const DEFAULT_COLORS: SiteColors = {
 export const DEFAULT_CONTACT: ContactInfo = {
   whatsapp:  "966500000000",
   phone:     "966500000000",
-  email:     "info@adsouq.sa",
+  email:     "info@e3lani.com",
   address:   "جدة، المملكة العربية السعودية",
   addressEn: "Jeddah, Saudi Arabia",
   instagram: "",

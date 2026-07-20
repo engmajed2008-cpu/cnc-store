@@ -1225,7 +1225,7 @@ export default function JoinPage() {
             <p style={{ color: "#bbb", fontSize: "0.85rem", margin: "0 0 1rem", lineHeight: 1.8 }}>
               {ar
                 ? "أتعهد بصفتي ممثلاً نظامياً للمنشأة، عند الانضمام لسوق الدعاية والإعلان، بالالتزام بما يلي:"
-                : "As the authorized representative of the establishment, by joining AdSouq I pledge to comply with the following:"}
+                : "As the authorized representative of the establishment, by joining E3lani I pledge to comply with the following:"}
             </p>
             {pledgeTerms.length === 0 ? (
               <p style={{ color: "#888", fontSize: "0.85rem" }}>{ar ? "جاري تحميل الشروط..." : "Loading terms..."}</p>

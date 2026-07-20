@@ -247,7 +247,7 @@ export function HeroSection() {
             fontSize: "0.78rem", color: "#C9A24B", fontWeight: 600,
           }}>
             <span style={{ width:6, height:6, borderRadius:"50%", background:"#C9A24B", animation:"dotBlink 1.5s ease-in-out infinite", display:"inline-block" }}/>
-            {isRTL ? "✦ سوق الدعاية والإعلان — ADSOUQ" : "✦ ADSOUQ — ADVERTISING & SIGNAGE MARKET"}
+            {isRTL ? "✦ إعلاني — سوق الدعاية والإعلان" : "✦ E3LANI — ADVERTISING & SIGNAGE MARKET"}
           </div>
 
           {/* Title */}
