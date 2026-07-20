@@ -98,7 +98,7 @@ export default function ProfilePage() {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 2rem", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href={"/" + locale} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <BrandMark size={34} />
-            <span style={{ fontSize: ar ? "0.9rem" : "1rem", fontWeight: 900, ...GT }}>{ar ? "سوق الدعاية والإعلان" : "ADSOUQ"}</span>
+            <span style={{ fontSize: ar ? "0.9rem" : "1rem", fontWeight: 900, ...GT }}>{ar ? "سوق الدعاية والإعلان" : "E3lani"}</span>
           </Link>
           <button onClick={handleLogout} style={{
             display: "flex", alignItems: "center", gap: "0.4rem",

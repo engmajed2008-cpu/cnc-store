@@ -73,7 +73,7 @@ export default function LoginPage() {
           <Link href={"/" + locale} style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.75rem" }}>
             <BrandMark size={44} />
             <span style={{ fontSize: ar ? "1.05rem" : "1.25rem", fontWeight: 900, ...GT }}>
-              {ar ? "سوق الدعاية والإعلان" : "ADSOUQ"}
+              {ar ? "سوق الدعاية والإعلان" : "E3lani"}
             </span>
           </Link>
           <div style={{ marginTop: "2rem" }}>
@@ -403,10 +403,10 @@ export default function LoginPage() {
 
           {/* Brand name */}
           <text className="deco-title" x="280" y="158" textAnchor="middle" fill="#C9A24B" fontFamily="Cairo,sans-serif" fontSize={ar ? "24" : "30"} fontWeight="900" opacity="0.95">
-            {ar ? "سوق الدعاية والإعلان" : "ADSOUQ"}
+            {ar ? "سوق الدعاية والإعلان" : "E3lani"}
           </text>
           <text className="deco-title" x="280" y="182" textAnchor="middle" fill="#555" fontFamily="Cairo,sans-serif" fontSize="10" letterSpacing="4">
-            ADSOUQ.SA
+            E3LANI.COM
           </text>
           {/* Bottom tagline */}
           <text x="280" y="655" textAnchor="middle" fill="#3a3a3a" fontFamily="Cairo,sans-serif" fontSize="12">

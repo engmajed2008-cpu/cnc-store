@@ -233,7 +233,7 @@ export default function RegisterPage() {
           <Link href={"/" + locale} style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.75rem" }}>
             <BrandMark size={42} />
             <span style={{ fontSize: ar ? "1rem" : "1.15rem", fontWeight: 900, ...GT }}>
-              {ar ? "سوق الدعاية والإعلان" : "ADSOUQ"}
+              {ar ? "سوق الدعاية والإعلان" : "E3lani"}
             </span>
           </Link>
           <div style={{ marginTop: "1.75rem" }}>
@@ -559,11 +559,11 @@ export default function RegisterPage() {
           {/* Brand */}
           <text className="reg-title" x="280" y="42" textAnchor="middle"
             fill="#C9A24B" fontFamily="Cairo,sans-serif" fontSize={ar ? "22" : "26"} fontWeight="900">
-            {ar ? "سوق الدعاية والإعلان" : "ADSOUQ"}
+            {ar ? "سوق الدعاية والإعلان" : "E3lani"}
           </text>
           <text x="280" y="62" textAnchor="middle" fill="#444"
             fontFamily="Cairo,sans-serif" fontSize="9" letterSpacing="4">
-            ADSOUQ.SA
+            E3LANI.COM
           </text>
 
           {/* Divider line */}

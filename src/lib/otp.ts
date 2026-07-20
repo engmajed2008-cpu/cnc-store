@@ -192,7 +192,7 @@ export async function sendOtpEmail(email: string, code: string): Promise<{ devCo
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM ?? "AdSouq <noreply@adsouq.sa>",
+        from: process.env.EMAIL_FROM ?? "E3lani <noreply@e3lani.com>",
         to: [email],
         subject: `رمز تأكيد البريد: ${code} — سوق الدعاية والإعلان`,
         html: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;background:#F4EFE6;color:#2C1E15;padding:32px;border-radius:12px;max-width:480px;margin:0 auto">

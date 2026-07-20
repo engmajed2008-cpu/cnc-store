@@ -12,11 +12,11 @@ export async function generateMetadata({
   const { locale } = await params;
   return locale === "ar"
     ? {
-        title: "سوق الدعاية والإعلان | ADSOUQ",
+        title: "إعلاني | سوق الدعاية والإعلان",
         description: "سوقك المتكامل للدعاية والإعلان — لوحات ولافتات احترافية، ديكور فني، وقص CNC بدقة عالية",
       }
     : {
-        title: "AdSouq — Advertising & Signage Market",
+        title: "E3lani — Advertising & Signage Market",
         description: "Your complete advertising marketplace — professional signs, artistic decor, and precision CNC cutting",
       };
 }
