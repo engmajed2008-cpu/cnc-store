@@ -45,7 +45,7 @@ export default async function Layout({
   return (
     <div lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} className={`${tajawal.className} ${plex.variable}`} style={{ margin: 0, color: "var(--text-primary)", minHeight: "100vh" }}>
       <Providers locale={locale} messages={messages}>
-        <main style={{ paddingTop: "108px" }}>{children}</main>
+        <main style={{ paddingTop: "var(--nav-h, 108px)" }}>{children}</main>
       </Providers>
     </div>
   );
