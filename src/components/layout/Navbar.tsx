@@ -131,6 +131,17 @@ export default function Navbar({ locale }: { locale: string }) {
   const navRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
 
+  // Publish the real navbar height so <main> can offset content under the fixed bar
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const publish = () => document.documentElement.style.setProperty("--nav-h", `${el.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (navRef.current && !navRef.current.contains(e.target as Node)) {
@@ -169,13 +180,13 @@ export default function Navbar({ locale }: { locale: string }) {
                 <div style={{ height: isMobile ? 34 : 44, display: "flex", alignItems: "center" }}>
                   <img src="/brand/e3lani-mark.svg" alt="إعلاني" style={{ height: isMobile ? 34 : 44, width: "auto", display: "block" }} />
                 </div>
-                <span dir="ltr" style={{ fontSize: "0.66rem", color: NAV_GOLD, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 800 }}>E3LANI.COM</span>
+                {!isMobile && <span dir="ltr" style={{ fontSize: "0.66rem", color: NAV_GOLD, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 800 }}>E3LANI.COM</span>}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.18rem" }}>
                 <div style={{ height: isMobile ? 34 : 44, display: "flex", alignItems: "center" }}>
                   <img src="/brand/e3lani-word.svg" alt="إعلاني" style={{ height: isMobile ? 34 : 44, width: "auto", display: "block" }} />
                 </div>
-                <span style={{ fontSize: "0.78rem", color: NAV_MUTED, fontWeight: 600, whiteSpace: "nowrap" }}>سوق الدعاية والإعلان</span>
+                {!isMobile && <span style={{ fontSize: "0.78rem", color: NAV_MUTED, fontWeight: 600, whiteSpace: "nowrap" }}>سوق الدعاية والإعلان</span>}
               </div>
             </div>
           ) : (
