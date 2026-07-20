@@ -1116,7 +1116,7 @@ export default function ConfiguratorPage({ locale }: { locale: string }) {
           <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "rgba(201,162,75,0.7)", letterSpacing: "0.2em", textTransform: "uppercase" as const, fontFamily: "monospace", marginBottom: 20 }}>
             {L("— اختر نوع المنتج", "— CHOOSE PRODUCT TYPE")}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 14 }}>
             {categories.map((c) => (
               <CategoryCard
                 key={c.key}

@@ -220,7 +220,7 @@ export default function SubcategoryProductsPage({
               </div>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.25rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", gap: "1.25rem" }}>
               {products.map(p => (
                 <ProductCard key={p.id} product={p} ar={ar} locale={locale} accentColor={accentColor} />
               ))}

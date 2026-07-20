@@ -294,7 +294,7 @@ export default function ProductsPage() {
           <div className="section-container">
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
               gap: "1rem",
             }}>
               {products.map((product, idx) => (
@@ -311,7 +311,7 @@ export default function ProductsPage() {
             {/* Stats bar */}
             <div style={{
               marginTop: "3rem",
-              display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
               gap: "1rem",
             }}>
               {[

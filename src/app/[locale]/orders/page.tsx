@@ -145,7 +145,7 @@ export default function OrdersPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
 
           {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.75rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: "0.75rem" }}>
             {[
               { label: ar?"إجمالي الطلبات":"Total Orders",   value: stats.total,               suffix: "" },
               { label: ar?"طلبات نشطة":"Active Orders",      value: stats.active,              suffix: "" },

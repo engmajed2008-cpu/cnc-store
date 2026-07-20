@@ -372,7 +372,7 @@ export default function SignsPage() {
           <div className="section-container">
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
               gap: "1rem",
             }}
             className="grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
