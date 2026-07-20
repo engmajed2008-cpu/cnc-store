@@ -139,3 +139,18 @@ F12 → Network → ضع علامة "Disable cache" → Reload.
 - `HeroSection.tsx`, `HeroSlider.tsx`, `ServicesSection.tsx`, `LanguageSwitcher.tsx`, `useDirection.ts` — كانت مقطوعة أو تحتوي null bytes
 - `CategoryGrid.tsx` — null bytes في النهاية
 - `next.config.mjs`, `layout.tsx`, `providers.tsx`, `i18n.ts` — كانت تحتوي BOM (Byte Order Mark) يمنع التعرف على `"use client"`
+
+## حالة النشر (آخر تحديث 2026-07-20)
+- **الموقع حي على https://www.e3lani.com** (Vercel، مشروع cnc-store، النشر تلقائي من فرع `main`).
+- DNS في Namecheap: A `@`→76.76.21.21، CNAME `www`→cname.vercel-dns.com. SSL تلقائي من Vercel.
+- Supabase (مشروع cgpisiscqpqhdprkuldo): متغيرات البيئة مضبوطة في Vercel، وAuth URL Configuration محدثة للدومين — تسجيل دخول Google يعمل.
+- تم دمج فرع redesign/luxury-theme في main (النسخة الحالية = سوق الدعاية والإعلان الكاملة).
+- الهوية: إعلاني / E3lani / e3lani.com في كل الكود (استُبدل Metal Art وADSOUQ). مفاتيح التخزين `metalart_*` بقيت كما هي عمداً (معرّفات بيانات).
+- تجاوب الجوال: مراجعة شاملة منفذة (PRs #7–#13) — useIsMobile hook، شبكات auto-fit، Navbar وSlider متجاوبان، إزاحة المحتوى عبر `--nav-h`، شبكة أمان في globals.css.
+- إصلاحات بناء مهمة: prisma generate في build/postinstall، تهيئة كسولة لعملاء Prisma/Supabase، middleware في `src/middleware.ts` (وليس الجذر).
+
+### بنود معلقة للجلسات القادمة
+- تسجيل دومين e3lani.sa وفحص العلامة التجارية في SAIP قبل الإطلاق التسويقي.
+- تفعيل Web Analytics في Vercel، وإعادة تسمية فريق Vercel إلى E3lani.
+- ترقية Supabase إلى Pro عند الإطلاق التجاري (الخطة المجانية توقف المشروع بعد أسبوع خمول).
+- مراجعة لوحة الإدارة على الجوال بعمق أكبر (أُصلحت الشبكات الأساسية فقط).
