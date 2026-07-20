@@ -188,7 +188,7 @@ interface CartContextValue {
 
 export const CartContext = createContext<CartContextValue | null>(null);
 
-const STORAGE_KEY = "e3lani_cart_v1";
+const STORAGE_KEY = "metalart_cart_v1";
 const KNOWN_COUPONS: Record<string, number> = {
   "WELCOME10": 0.10,
   "METAL15":   0.15,
